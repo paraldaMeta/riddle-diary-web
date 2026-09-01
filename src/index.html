@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="The Diary">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#050403">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" sizes="180x180">
   <title>The Diary</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -215,6 +222,25 @@
     }
     #gear:hover { opacity: 0.7; }
 
+    /* ---- Install affordance (shown only when the browser offers PWA install) ---- */
+    #install-app {
+      position: fixed;
+      top: 0.75rem; left: 0.75rem;
+      z-index: 30;
+      padding: 0.45rem 0.72rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--bg) 82%, transparent);
+      color: var(--muted);
+      font: 0.75rem Georgia, serif;
+      cursor: pointer;
+      opacity: 0.72;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    #install-app:hover { opacity: 1; }
+    #install-app[hidden] { display: none; }
+
     /* ---- Settings panel ---- */
     #settings {
       position: fixed;
@@ -294,6 +320,7 @@
   <div id="candle"></div>
   <div id="watermark">T.M.R.</div>
 
+  <button id="install-app" type="button" hidden>Install</button>
   <div id="gear">⚙</div>
 
   <div id="guide">
@@ -409,6 +436,7 @@
   var guideEl = document.getElementById('guide');
   var statusEl = document.getElementById('status');
   var gearEl = document.getElementById('gear');
+  var installAppEl = document.getElementById('install-app');
   var settingsEl = document.getElementById('settings');
 
   // ---- Canvas sizing -------------------------------------------------------
@@ -859,6 +887,35 @@
   settingsEl.addEventListener('click', function(e) {
     if (e.target === settingsEl) closeSettings();
   });
+
+  // ---- PWA installation -----------------------------------------------------
+  var pendingInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(event) {
+    event.preventDefault();
+    pendingInstallPrompt = event;
+    installAppEl.hidden = false;
+  });
+
+  installAppEl.addEventListener('click', async function() {
+    if (!pendingInstallPrompt) return;
+    await pendingInstallPrompt.prompt();
+    await pendingInstallPrompt.userChoice;
+    pendingInstallPrompt = null;
+    installAppEl.hidden = true;
+  });
+
+  window.addEventListener('appinstalled', function() {
+    pendingInstallPrompt = null;
+    installAppEl.hidden = true;
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').catch(function(error) {
+        console.warn('Service worker registration failed:', error);
+      });
+    });
+  }
 
   // ---- Pointer events ------------------------------------------------------
   canvas.addEventListener('pointerdown', function(e) {

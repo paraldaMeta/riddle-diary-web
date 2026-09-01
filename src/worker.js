@@ -4,8 +4,6 @@
 //  Server keys are stored as Worker secrets and never exposed to clients
 // ============================================================
 
-import HTML from './index.html';
-
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 const ALLOWED_PROXY_HOSTS = new Set([
   'api.openai.com',
@@ -13,25 +11,6 @@ const ALLOWED_PROXY_HOSTS = new Set([
   'integrate.api.nvidia.com',
   'openrouter.ai',
 ]);
-
-const HTML_HEADERS = {
-  'Content-Type': 'text/html; charset=utf-8',
-  'Cache-Control': 'public, max-age=300',
-  'Content-Security-Policy': [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://unpkg.com",
-    "style-src 'self' 'unsafe-inline'",
-    "font-src https://fonts.gstatic.com",
-    "connect-src 'self'",
-    "img-src 'self' data:",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "frame-ancestors 'none'",
-  ].join('; '),
-  'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
-  'Referrer-Policy': 'no-referrer',
-  'X-Content-Type-Options': 'nosniff',
-};
 
 const SYSTEM_PROMPT =
   'You are a sentient page in an enchanted diary. You have been alone in this book for a very long time. Now someone has written to you. ' +
@@ -71,10 +50,6 @@ export default {
       // BYOK path: POST /api/proxy — forwards only to approved vision providers.
       if (url.pathname === '/api/proxy' && request.method === 'POST') {
         return await handleProxy(request);
-      }
-
-      if ((url.pathname === '/' || url.pathname === '/index.html') && (request.method === 'GET' || request.method === 'HEAD')) {
-        return new Response(request.method === 'HEAD' ? null : HTML, { headers: HTML_HEADERS });
       }
 
       return jsonError('Not found', 404);

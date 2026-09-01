@@ -15,10 +15,13 @@ This repository preserves the history of [farhan-beg/riddle-web](https://github.
 - Vision-model handwriting recognition
 - Streaming, word-by-word handwritten replies
 - Dark OLED and parchment themes
+- Installable PWA with offline app-shell support
 - BYOK support for OpenAI, OpenRouter, Groq, and NVIDIA NIM
 - Cloudflare Worker proxy with provider allowlisting, bounded request bodies, security headers, and structured error logging
 
 The public deployment is currently **BYOK-only**. Open the settings panel and supply a restricted API key for a vision-capable model. The key is stored in your browser's `localStorage` and relayed through this Worker; use a key with a spending limit.
+
+Install it from the browser's app/install menu. On supported Chromium browsers, an **Install** button also appears in the top-left corner. The interface opens offline after the first successful visit; AI replies still require a network connection.
 
 ## Run locally
 
@@ -74,6 +77,8 @@ The Worker exposes two same-origin endpoints:
 | `POST /api/ask` | Uses an optional server-side NVIDIA or OpenRouter secret |
 | `POST /api/proxy` | Relays a visitor's BYOK request to an allowlisted provider |
 
+Cloudflare serves the PWA shell directly from `src/` as static assets. `src/.assetsignore` keeps the server-side Worker entry point out of the public asset bundle, while `src/_headers` applies the CSP and PWA cache headers.
+
 ## Compatible providers
 
 The selected model must accept image input.
@@ -102,8 +107,13 @@ Local Ollama and arbitrary OpenAI-compatible hosts are intentionally disabled in
 ```text
 riddle-diary-web/
 ├── src/
-│   ├── index.html              # Canvas UI, drawing, fade, stream parser, reply animation
-│   └── worker.js               # HTML server, default backend, restricted BYOK proxy
+│   ├── icons/                  # SVG source plus 32/180/192/512 PNG icons
+│   ├── index.html              # Canvas UI, install prompt, drawing and reply animation
+│   ├── manifest.webmanifest    # PWA identity and install metadata
+│   ├── sw.js                   # Offline shell and cache lifecycle
+│   ├── _headers                # Static-asset security and cache headers
+│   ├── .assetsignore           # Prevents Worker source from being uploaded as an asset
+│   └── worker.js               # Default backend and restricted BYOK proxy
 ├── worker-configuration.d.ts # Generated Cloudflare runtime types
 ├── wrangler.jsonc           # Worker configuration
 ├── package.json
