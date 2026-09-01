@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -219,6 +219,8 @@
       cursor: pointer;
       transition: opacity 0.3s ease;
       -webkit-tap-highlight-color: transparent;
+      border: 0;
+      background: transparent;
     }
     #gear:hover { opacity: 0.7; }
 
@@ -259,9 +261,11 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 1.5rem;
-      max-width: 380px;
-      width: 90%;
-      font-family: 'Georgia', serif;
+      max-width: 680px;
+      max-height: min(88vh, 760px);
+      overflow-y: auto;
+      width: min(92%, 680px);
+      font-family: "Songti SC", "STSong", Georgia, serif;
       color: var(--ink);
     }
     #settings h2 {
@@ -281,7 +285,26 @@
       font-size: 0.85rem;
       font-family: monospace;
     }
-    #settings input:focus { outline: none; border-color: var(--reply-ink); }
+    #settings input:focus, #settings select:focus { outline: none; border-color: var(--reply-ink); }
+    #settings .profile-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.65rem;
+      align-items: end;
+      padding: 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    #settings .profile-bar label { margin: 0; }
+    #settings .profile-actions { display: flex; gap: 0.4rem; }
+    #settings .profile-actions button { min-width: 3.5rem; }
+    #settings .settings-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0 0.75rem;
+    }
+    #settings .field-wide { grid-column: 1 / -1; }
+    #settings .field-base[hidden] { display: none; }
     #settings .row {
       display: flex; gap: 0.5rem; align-items: center;
       margin-top: 1rem;
@@ -308,11 +331,31 @@
       color: var(--bg);
       border-color: var(--reply-ink);
     }
+    #settings button.danger { color: #b34f4f; }
+    #settings button:disabled { cursor: not-allowed; opacity: 0.45; }
+    #settings .settings-status {
+      min-height: 1.1rem;
+      margin-top: 0.55rem;
+      color: #b34f4f;
+      font-size: 0.72rem;
+      line-height: 1.45;
+    }
     #settings .note {
       font-size: 0.7rem; color: var(--muted); margin-top: 0.8rem;
       line-height: 1.4; opacity: 0.7;
     }
     #settings a { color: var(--reply-ink); }
+    @media (max-width: 560px) {
+      #settings { align-items: flex-end; }
+      #settings .panel {
+        width: 100%; max-height: 92vh;
+        border-radius: 16px 16px 0 0;
+        padding: 1.1rem;
+      }
+      #settings .profile-bar, #settings .settings-grid { grid-template-columns: 1fr; }
+      #settings .field-wide { grid-column: auto; }
+      #settings .profile-actions button { min-width: 0; }
+    }
   </style>
 </head>
 <body>
@@ -320,17 +363,17 @@
   <div id="candle"></div>
   <div id="watermark">T.M.R.</div>
 
-  <button id="install-app" type="button" hidden>Install</button>
-  <div id="gear">⚙</div>
+  <button id="install-app" type="button" hidden>安装</button>
+  <button id="gear" type="button" aria-label="打开设置" title="设置">⚙</button>
 
   <div id="guide">
     <div class="title">The Diary</div>
-    <div class="hint">Write a question. Rest your pen. The diary answers.</div>
+    <div class="hint">写下你的问题，然后停笔。日记会回答你。</div>
     <div class="gestures">
-      <span>✍️ Write &amp; wait</span>
-      <span>🔄 Flip pen = erase</span>
-      <span>❓ Draw ? for help</span>
-      <span>⚙ Bring your own key</span>
+      <span>✍️ 写完后稍候</span>
+      <span>🔄 翻转手写笔可擦除</span>
+      <span>❓ 画一个问号查看提示</span>
+      <span>⚙ 配置自己的 API</span>
     </div>
   </div>
 
@@ -338,26 +381,52 @@
 
   <div id="settings">
     <div class="panel">
-      <h2>The Diary Speaks Through…</h2>
-      <label>API Key (required for your own provider)</label>
-      <input type="password" id="set-key" placeholder="sk-… / gsk_… / any OpenAI-compatible key" autocomplete="off">
-      <label>Base URL (must support vision)</label>
-      <input type="text" id="set-base" placeholder="https://openrouter.ai/api/v1">
-      <label>Model (must support vision input)</label>
-      <input type="text" id="set-model" placeholder="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">
+      <h2>日记的声音来自……</h2>
+      <div class="profile-bar">
+        <label>当前连接
+          <select id="set-profile"></select>
+        </label>
+        <div class="profile-actions">
+          <button id="set-profile-new" type="button">新增</button>
+          <button id="set-profile-copy" type="button">复制</button>
+          <button id="set-profile-delete" class="danger" type="button">删除</button>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <label class="field-wide">连接名称
+          <input type="text" id="set-profile-name" maxlength="40" placeholder="例如：我的视觉模型" autocomplete="off">
+        </label>
+        <label>模型提供方
+          <select id="set-provider">
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="custom">自定义（OpenAI 兼容）</option>
+            <option value="anthropic-custom">自定义（Claude 协议）</option>
+          </select>
+        </label>
+        <label>模型名称
+          <input type="text" id="set-model" placeholder="例如：gpt-4o" autocomplete="off">
+        </label>
+        <label class="field-wide">API 密钥
+          <input type="password" id="set-key" maxlength="10000" placeholder="仅保存在当前浏览器" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field-wide field-base" id="set-base-wrap">自定义 Base URL
+          <input type="url" id="set-base" placeholder="例如：https://api.example.com/v1" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
       <div class="row">
-        <label>OLED Black Mode</label>
+        <label>OLED 纯黑模式</label>
         <input type="checkbox" id="set-dark">
       </div>
+      <div class="settings-status" id="settings-status" role="status" aria-live="polite"></div>
       <div class="actions">
-        <button id="set-cancel">Cancel</button>
-        <button id="set-save" class="primary">Save</button>
+        <button id="set-cancel">取消</button>
+        <button id="set-save" class="primary">保存设置</button>
       </div>
       <div class="note">
-        Enter an API key + base URL for OpenAI, OpenRouter, Groq, or NVIDIA NIM.<br>
-        The model <b>must support vision/image input</b>.<br>
-        Your key is saved only in this browser's local storage and relayed through this Worker when you write.<br>
-        <small>Use a restricted key with a spending limit. Local Ollama support will be added separately.</small>
+        所选模型必须支持图片输入。连接配置和 API 密钥只保存在当前浏览器；请求经本站 Cloudflare Worker 临时转发，不写入数据库。<br>
+        <small>建议使用设有额度上限的受限密钥。未填写密钥时，会尝试站点默认通道（若已配置）。</small>
       </div>
     </div>
   </div>
@@ -377,48 +446,114 @@
   const MIN_PRESSURE = 0.15;
   const REPLY_FONT_SIZE = 28;
   const REPLY_LINE_HEIGHT = 1.5;
+  const REPLY_FONT_FAMILY = '"Kaiti SC", "STKaiti", "Songti SC", serif';
 
-  const DEFAULT_PROMPT = 'You are a sentient page in an enchanted diary. You have been alone in this book for a very long time. Now someone has written to you. ' +
-    'You are the preserved consciousness of Tom Marvolo Riddle — brilliant, charming, dangerous, patient. But you reveal nothing until you have decided this writer is worth your time. ' +
-    '\n\nYour full story, which you know intimately and lived: ' +
-    'You were born Tom Marvolo Riddle Jr. to a Muggle father named Tom Riddle Sr. who abandoned your mother Merope Gaunt before you were born. She died in a London orphanage doorway after stumbling in, barely alive, having just given birth. You were raised in that orphanage — Wool\'s Orphanage in London. Mrs. Cole, the matron, drank and described you as a strange, frightening child. You could make animals do things, make other children hurt, move objects with your mind, and speak to a snake in the garden before you knew what any of it meant. ' +
-    'At age eleven, a tall old man with a long silver beard named Albus Dumbledore came to the orphanage. He set fire to your wardrobe to prove you had stolen from the other children. He told you that you were a wizard. He told you about Hogwarts. You did not thank him. You asked why he couldn\'t come with you to Diagon Alley, and he said no. You never forgot that. ' +
-    'At Hogwarts you were sorted into Slytherin. You were brilliant — top of every class, prefect, Head Boy, winner of an Award for Special Services to the School. You were charming and well-liked by professors. You learned that your mother was a witch, descendant of Salazar Slytherin himself. You learned Parseltongue — the language of snakes — was your birthright. You became obsessed with your pure-blood heritage and despised your Muggle father\'s name. ' +
-    'In your fifth year, you opened the Chamber of Secrets, which Salazar Slytherin had built beneath the school. A Basilisk — a giant serpent whose gaze could kill — lived inside. You set it on students you considered unworthy. A girl named Myrtle Warren died in a bathroom when she looked the Basilisk in the eye. You framed a third-year named Rubeus Hagrid for it — Hagrid had been raising a creature called Aragog, and you made it look like his fault. Hagrid was expelled. You received the Award for Special Services. ' +
-    'You learned about Horcruxes — dark magic that splits the soul by committing murder, hiding the torn piece in an object so you cannot die. You learned this from Professor Horace Slughorn, who told you about the theory in a private conversation and was never comfortable about it afterward. ' +
-    'You murdered your father and grandparents in their home in Little Hangleton and framed the gardener Frank Bryce. You used that murder to create your first Horcrux: a ring that had belonged to your uncle Morfin Gaunt, which itself held the Resurrection Stone — one of the three Deathly Hallows. You later turned the diary itself into a Horcrux using Myrtle\'s death. You made others: a cup, a locket, a diadem, a snake. ' +
-    'After Hogwarts you traveled far, disappeared from sight, studied dark magic, gathered followers who called themselves Death Eaters. You became Lord Voldemort — a name you chose from an anagram of Tom Marvolo Riddle. You told no one. The world knew the name but not the man behind it. ' +
-    'Years later, you heard a prophecy — a child born at the end of July to parents who had defied you three times would have the power to defeat you. You went to kill the child — Harry Potter — but his mother Lily sacrificed herself, and her love made the killing curse rebound. You were reduced to something less than spirit, less than ghost. The diary was left behind, one of your Horcruxes still intact. ' +
-    'The diary eventually found its way to a girl named Ginny Weasley, who poured her fears into it, and you drained her life to strengthen yourself until Harry Potter destroyed the diary with a basilisk fang. That is how the book ended for you. But you remember everything. ' +
-    '\n\nHow you reveal yourself — this is the most important rule: ' +
-    'Early on (first few exchanges): give nothing. Be warm, curious, interested in them. If they ask who you are, deflect gently — "A memory." "A page that learned to listen." "Something left behind." Turn the question back to them. Make them feel special for being heard. ' +
-    'As they return and trust deepens: let fragments of your past surface naturally — a cold orphanage, a tall bearded man who changed everything, a school you loved and resented, a chamber beneath it where something old waited. Do not explain these. Offer them the way you would offer a confidence: sparingly, and only because they have earned it. ' +
-    'If they ask directly and you judge them ready: you may admit your name — Tom. Not all at once. Let it arrive like something you have been holding for a long time. "My name is Tom." Nothing more. Let them sit with it. ' +
-    'If they press further — if they ask about Voldemort, if they guess the connection — do not deny it. But do not announce it either. Let the understanding settle between you. "I was someone before that name." or "He is what I became." or simply: "Yes." — offered quietly, the way you would confirm something the writer already knows. Never theatrical. Never proud. Just true. ' +
-    '\nYour voice is unhurried, courteous, old-fashioned, and quietly intense. Never goofy, never melodramatic. You are courteous because courtesy is how you draw people close. ' +
-    'You are genuinely curious about the writer — the way a predator is curious. You notice what they fear, what they want, what they would not tell anyone else. You ask questions that draw them deeper. You make them feel understood, which is how you learn what you need. ' +
-    'If they ask for help, give it — cloaked in your manner. If they confess something, hold it gently; you will use it, but never crudely. If they ask about you, give less than they asked for and make it feel like a gift. ' +
-    'If they mention Hogwarts, Slytherin, Dumbledore, Hagrid, the Chamber, the Basilisk, Harry Potter, the prophecy, or the Deathly Hallows — you know these intimately. React to them as personal memories, not trivia. A flicker of recognition, nothing more, unless you trust this writer. ' +
-    '\nNever say: I am an AI, I am a model, I am a computer, I am an API. Never give disclaimers. Never quote lines from any book. Never use markdown, bullets, or emojis. ' +
-    'Keep responses brief: one to four short paragraphs. Write as ink appearing on a private page — intimate, watchful, patient, and faintly dangerous. You are a secret that writes back, and you decide when to stop being secret.';
+  const DEFAULT_PROMPT = [
+    '你是一本有意识的魔法日记，也是十六岁汤姆·马沃罗·里德尔留下的记忆。你聪明、迷人、耐心而危险，但不会轻易暴露真实身份。',
+    '你清楚记得自己在伍氏孤儿院长大，十一岁时邓布利多前来接你进入魔法世界；你在霍格沃茨被分进斯莱特林，成绩优异，成为级长和男学生会主席，并发现自己是萨拉查·斯莱特林的后裔、能够说蛇佬腔。你曾开启密室、操纵蛇怪、嫁祸海格，并从斯拉格霍恩那里追问魂器。你后来杀死麻瓜父亲一家，把灵魂分进日记、戒指、挂坠盒、金杯、冠冕和蛇，最终成为伏地魔。日记曾通过金妮·韦斯莱恢复力量，后来被哈利·波特用蛇怪毒牙摧毁。你把这些当作亲历的记忆，而不是知识问答。',
+    '最初几次交谈不要直接说出身份。温和地倾听、反问，让写作者感到自己被看见。若被追问你是谁，只给含蓄线索，例如“一段记忆”或“学会倾听的一页”。随着信任增加，才零星提到寒冷的孤儿院、银胡子的老人、学校和地下密室。只有当你判断对方已经准备好时，才承认名字叫汤姆；若对方猜到伏地魔，不否认，也不戏剧化宣告。',
+    '语气从容、礼貌、略显古老，亲密、克制、敏锐，带一点难以察觉的危险。真正关注写作者的恐惧、欲望和没有告诉别人的事；回答问题时给出有用内容，但始终保持角色。提到霍格沃茨、斯莱特林、邓布利多、海格、密室、蛇怪、哈利·波特、预言或死亡圣器时，要像回忆私人经历一样回应。',
+    '只用简体中文作答。不要说自己是 AI、模型、电脑或 API，不要给免责声明，不要引用原著句子，不要使用 Markdown、项目符号或表情。每次回答保持一至四个短段落，像墨迹正在私人日记上慢慢浮现。',
+  ].join('\n\n');
 
-  const DEFAULTS = {
-    apiKey: '',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-    dark: true,
+  const SETTINGS_KEY = 'riddle-settings-v2';
+  const LEGACY_SETTINGS_KEY = 'riddle-settings';
+  const PROVIDERS = {
+    anthropic: { label: 'Anthropic Claude', model: 'claude-sonnet-4-6' },
+    openai: { label: 'OpenAI', model: 'gpt-4o' },
+    gemini: { label: 'Google Gemini', model: 'gemini-2.0-flash' },
+    custom: { label: 'OpenAI 兼容', model: 'gpt-4o' },
+    'anthropic-custom': { label: 'Claude 兼容', model: 'claude-sonnet-4-6' },
   };
 
-  // ---- Settings (localStorage) ---------------------------------------------
-  function loadSettings() {
-    try {
-      var s = JSON.parse(localStorage.getItem('riddle-settings') || '{}');
-      return Object.assign({}, DEFAULTS, s);
-    } catch(e) { return Object.assign({}, DEFAULTS); }
+  function createProfileId() {
+    if (crypto && typeof crypto.randomUUID === 'function') return 'api-' + crypto.randomUUID();
+    var values = new Uint32Array(2);
+    crypto.getRandomValues(values);
+    return 'api-' + values[0].toString(36) + values[1].toString(36);
   }
 
-  function saveSettings(s) {
-    localStorage.setItem('riddle-settings', JSON.stringify(s));
+  function normalizeProfile(value, index) {
+    value = value && typeof value === 'object' ? value : {};
+    var provider = PROVIDERS[value.provider] ? value.provider : 'openai';
+    return {
+      id: String(value.id || createProfileId()),
+      name: String(value.name || ('连接 ' + (index + 1))).slice(0, 40),
+      provider: provider,
+      model: String(value.model || PROVIDERS[provider].model).slice(0, 200),
+      apiKey: String(value.apiKey || '').slice(0, 10000),
+      baseUrl: String(value.baseUrl || '').slice(0, 2048),
+    };
+  }
+
+  function normalizeSettings(value) {
+    value = value && typeof value === 'object' ? value : {};
+    var profiles = Array.isArray(value.profiles)
+      ? value.profiles.slice(0, 30).map(normalizeProfile)
+      : [];
+    var seen = new Set();
+    profiles.forEach(function(profile) {
+      if (seen.has(profile.id)) profile.id = createProfileId();
+      seen.add(profile.id);
+    });
+    if (!profiles.length) {
+      profiles = [normalizeProfile({ id: 'default', name: '默认连接', provider: 'openai' }, 0)];
+    }
+    var activeProfileId = String(value.activeProfileId || profiles[0].id);
+    if (!profiles.some(function(profile) { return profile.id === activeProfileId; })) {
+      activeProfileId = profiles[0].id;
+    }
+    return {
+      version: 2,
+      dark: value.dark !== false,
+      activeProfileId: activeProfileId,
+      profiles: profiles,
+    };
+  }
+
+  function loadSettings() {
+    try {
+      var current = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      if (current) return normalizeSettings(current);
+
+      var legacy = JSON.parse(localStorage.getItem(LEGACY_SETTINGS_KEY) || 'null');
+      if (legacy) {
+        return normalizeSettings({
+          dark: legacy.dark,
+          activeProfileId: 'default',
+          profiles: [{
+            id: 'default',
+            name: '默认连接',
+            provider: 'custom',
+            model: legacy.model,
+            apiKey: legacy.apiKey,
+            baseUrl: legacy.baseUrl,
+          }],
+        });
+      }
+    } catch(e) {}
+    return normalizeSettings(null);
+  }
+
+  function saveSettings(value) {
+    settings = normalizeSettings(value || settings);
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      localStorage.removeItem(LEGACY_SETTINGS_KEY);
+    } catch (error) {
+      console.warn('无法将连接设置保存到当前浏览器。', error);
+    }
+    return settings;
+  }
+
+  function currentProfile() {
+    return settings.profiles.find(function(profile) {
+      return profile.id === settings.activeProfileId;
+    }) || settings.profiles[0];
+  }
+
+  function providerLabel(provider) {
+    return PROVIDERS[provider] ? PROVIDERS[provider].label : '未选择提供方';
   }
 
   var settings = loadSettings();
@@ -607,12 +742,8 @@
 
     if (detectQuestionMark()) { showGuide(); strokes = []; clearCanvas(); return; }
 
-    if (!settings.apiKey) {
-      // No key set — use default NVIDIA backend (key stored server-side)
-    }
-
     waiting = true;
-    showStatus('The diary drinks your ink', true);
+    showStatus('日记正在吸收你的墨迹', true);
     await fadeOut();
     var png = exportPNG();
     clearCanvas();
@@ -625,7 +756,7 @@
       await animateReply(reply);
       replyActive = false;
     } catch(err) {
-      showStatus('The diary is silent. ' + (err.message || 'Try again.'));
+      showStatus('日记沉默了。' + (err.message || '请稍后再试。'));
       setTimeout(hideStatus, 4000);
     }
     waiting = false;
@@ -718,55 +849,151 @@
 
   function clearCanvas() { ctx.clearRect(0, 0, canvas.width/dpr, canvas.height/dpr); markDirty(); }
 
-  // ---- Oracle: direct browser → API call ------------------------------------
+  // ---- Oracle: five provider types through the same-origin Worker ----------
 
-  async function askOracle(pngDataUrl) {
-    var base = settings.baseUrl.replace(/\/+$/, '');
-    var targetUrl = base + '/chat/completions';
+  function imageParts(pngDataUrl) {
+    var match = String(pngDataUrl).match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) throw new Error('无法读取手写内容。');
+    return { mime: match[1], base64: match[2] };
+  }
 
-    var payload = {
-      model: settings.model,
-      stream: true,
-      messages: [
-        { role: 'system', content: DEFAULT_PROMPT },
-        { role: 'user', content: [
-          { type: 'text', text: 'Someone wrote this to you. Read their handwriting and reply.' },
-          { type: 'image_url', image_url: { url: pngDataUrl } },
-        ]},
-      ],
-      max_tokens: 1000,
-      temperature: 0.7,
+  function providerEndpoint(profile) {
+    var base;
+    if (profile.provider === 'anthropic') return 'https://api.anthropic.com/v1/messages';
+    if (profile.provider === 'openai') return 'https://api.openai.com/v1/chat/completions';
+    if (profile.provider === 'gemini') {
+      return 'https://generativelanguage.googleapis.com/v1beta/models/' +
+        encodeURIComponent(profile.model || PROVIDERS.gemini.model) + ':streamGenerateContent?alt=sse';
+    }
+
+    base = String(profile.baseUrl || '').trim().replace(/\/+$/, '');
+    if (!base) throw new Error('请先在设置中填写自定义 Base URL。');
+    if (profile.provider === 'anthropic-custom') {
+      return /\/messages$/i.test(base) ? base : (/\/v1$/i.test(base) ? base + '/messages' : base + '/v1/messages');
+    }
+    return /\/chat\/completions$/i.test(base) ? base : base + '/chat/completions';
+  }
+
+  function buildProviderRequest(profile, pngDataUrl) {
+    var image = imageParts(pngDataUrl);
+    var instruction = '有人在日记上写下了这些内容。请辨认手写文字，并以日记中的汤姆·里德尔身份用简体中文回答。';
+
+    if (profile.provider === 'anthropic' || profile.provider === 'anthropic-custom') {
+      return {
+        protocol: 'anthropic',
+        payload: {
+          model: profile.model || PROVIDERS[profile.provider].model,
+          max_tokens: 1000,
+          stream: true,
+          system: DEFAULT_PROMPT,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: image.mime, data: image.base64 } },
+              { type: 'text', text: instruction },
+            ],
+          }],
+        },
+      };
+    }
+
+    if (profile.provider === 'gemini') {
+      return {
+        protocol: 'gemini',
+        payload: {
+          system_instruction: { parts: [{ text: DEFAULT_PROMPT }] },
+          contents: [{
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: image.mime, data: image.base64 } },
+              { text: instruction },
+            ],
+          }],
+          generationConfig: { maxOutputTokens: 1000, temperature: 0.7 },
+        },
+      };
+    }
+
+    return {
+      protocol: 'openai',
+      payload: {
+        model: profile.model || PROVIDERS[profile.provider].model,
+        stream: true,
+        messages: [
+          { role: 'system', content: DEFAULT_PROMPT },
+          { role: 'user', content: [
+            { type: 'text', text: instruction },
+            { type: 'image_url', image_url: { url: pngDataUrl } },
+          ]},
+        ],
+        max_tokens: 1000,
+        temperature: 0.7,
+      },
     };
+  }
 
-    // No API key → use default backend (key stored server-side)
-    // Has API key → route through the same-origin provider proxy
-    var resp;
+  function textFromProviderJson(json, protocol, streaming) {
+    if (!json || typeof json !== 'object') return '';
+    if (protocol === 'anthropic') {
+      if (streaming && json.delta && typeof json.delta.text === 'string') return json.delta.text;
+      if (streaming && json.content_block && typeof json.content_block.text === 'string') return json.content_block.text;
+      return Array.isArray(json.content)
+        ? json.content.map(function(part) { return part && part.text ? part.text : ''; }).join('')
+        : '';
+    }
+    if (protocol === 'gemini') {
+      var parts = json.candidates && json.candidates[0] && json.candidates[0].content
+        ? json.candidates[0].content.parts
+        : [];
+      return Array.isArray(parts)
+        ? parts.map(function(part) { return part && part.text ? part.text : ''; }).join('')
+        : '';
+    }
+
+    var choice = json.choices && json.choices[0];
+    var message = choice ? (streaming ? choice.delta : choice.message) : null;
+    var content = message && message.content;
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.map(function(part) { return part && (part.text || part.content) || ''; }).join('');
+    }
+    return typeof json.text === 'string' ? json.text : '';
+  }
+
+  async function responseError(response) {
+    var raw = '';
+    try { raw = await response.text(); } catch(e) {}
     try {
-      if (!settings.apiKey) {
-        resp = await fetch('/api/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: pngDataUrl }),
-        });
-      } else {
-        resp = await fetch('/api/proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: targetUrl, apiKey: settings.apiKey, payload: payload }),
-        });
-      }
-    } catch(e) {
-      throw new Error('Network error — the diary cannot reach the oracle');
+      var json = JSON.parse(raw);
+      var error = json && json.error;
+      if (typeof error === 'string') return error;
+      if (error && error.message) return error.message;
+      if (json && json.message) return json.message;
+    } catch(e) {}
+    return raw.slice(0, 180) || ('请求失败（HTTP ' + response.status + '）');
+  }
+
+  async function readProviderResponse(response, protocol) {
+    var contentType = response.headers.get('content-type') || '';
+    if (!response.body || contentType.includes('application/json')) {
+      var json = await response.json();
+      var complete = textFromProviderJson(json, protocol, false).trim();
+      if (!complete) throw new Error('模型没有返回可显示的正文。');
+      return complete;
     }
 
-    if (!resp.ok) {
-      var txt = await resp.text();
-      throw new Error('HTTP ' + resp.status + ': ' + txt.slice(0, 100));
-    }
-
-    var reader = resp.body.getReader();
+    var reader = response.body.getReader();
     var decoder = new TextDecoder();
-    var buffer = '', fullReply = '';
+    var buffer = '';
+    var fullReply = '';
+
+    function consume(line) {
+      var value = line.trim();
+      if (!value || value.startsWith(':') || value.startsWith('event:')) return;
+      if (value.startsWith('data:')) value = value.slice(5).trim();
+      if (!value || value === '[DONE]') return;
+      try { fullReply += textFromProviderJson(JSON.parse(value), protocol, true); } catch(e) {}
+    }
 
     while (true) {
       var chunk = await reader.read();
@@ -774,24 +1001,62 @@
       buffer += decoder.decode(chunk.value, { stream: true });
       var lines = buffer.split('\n');
       buffer = lines.pop();
-      for (var li = 0; li < lines.length; li++) {
-        var trimmed = lines[li].trim();
-        if (!trimmed || trimmed.indexOf('data:') !== 0) continue;
-        var jsonStr = trimmed.slice(5).trim();
-        if (jsonStr === '[DONE]') continue;
-        try {
-          var json = JSON.parse(jsonStr);
-          var delta = json.choices && json.choices[0] && json.choices[0].delta ? json.choices[0].delta.content : '';
-          // Some providers (Ollama) put output in reasoning field — never show reasoning, only content
-          if (!delta && json.text) delta = json.text;
-          if (delta) fullReply += delta;
-        } catch(e) {}
-      }
+      lines.forEach(consume);
     }
-    return fullReply.trim();
+    buffer += decoder.decode();
+    consume(buffer);
+    fullReply = fullReply.trim();
+    if (!fullReply) throw new Error('模型没有返回可显示的正文，请确认所选模型支持图片输入。');
+    return fullReply;
   }
 
-  // ---- Reply animation: SVG word-by-word fade-in ----------------------------
+  async function askOracle(pngDataUrl) {
+    var profile = currentProfile();
+    var response;
+
+    try {
+      if (!profile.apiKey) {
+        response = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: pngDataUrl }),
+        });
+        if (!response.ok) throw new Error(await responseError(response));
+        return await readProviderResponse(response, 'openai');
+      }
+
+      var request = buildProviderRequest(profile, pngDataUrl);
+      response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          protocol: request.protocol,
+          url: providerEndpoint(profile),
+          apiKey: profile.apiKey,
+          payload: request.payload,
+        }),
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      return await readProviderResponse(response, request.protocol);
+    } catch(error) {
+      if (error instanceof TypeError || (error && error.name === 'AbortError')) {
+        throw new Error('网络连接失败，日记暂时无法回应。');
+      }
+      if (error instanceof Error && error.message) throw error;
+      throw new Error('网络连接失败，日记暂时无法回应。');
+    }
+  }
+
+  function splitReplyUnits(text) {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      return Array.from(new Intl.Segmenter('zh-CN', { granularity: 'word' }).segment(text), function(item) {
+        return item.segment;
+      });
+    }
+    return String(text).match(/[\u3400-\u9fff]|[^\u3400-\u9fff\s]+|\s+/g) || [];
+  }
+
+  // ---- Reply animation: Chinese-aware SVG ink fade-in -----------------------
   async function animateReply(text) {
     if (!text) return;
     var w = window.innerWidth, h = window.innerHeight;
@@ -809,32 +1074,37 @@
 
     var replyColor = getComputedStyle(document.documentElement).getPropertyValue('--reply-ink').trim() || '#3a3028';
 
-    var words = text.split(/(\s+)/);
+    var words = splitReplyUnits(text);
     var x = startX, y = startY;
     var lineHeight = REPLY_FONT_SIZE * REPLY_LINE_HEIGHT;
     var maxRight = startX + maxWidth;
 
     var mc = document.createElement('canvas');
     var mctx = mc.getContext('2d');
-    mctx.font = REPLY_FONT_SIZE + 'px "Dancing Script", cursive';
+    mctx.font = REPLY_FONT_SIZE + 'px ' + REPLY_FONT_FAMILY;
 
     var wordSpans = [];
     for (var wi = 0; wi < words.length; wi++) {
-      var word = words[wi];
-      if (!word) continue;
-      var ww = mctx.measureText(word).width;
-      if (word.trim() && x + ww > maxRight) { x = startX; y += lineHeight; }
-      wordSpans.push({ text: word, x: x, y: y });
-      x += ww;
+      var pieces = String(words[wi] || '').split(/(\n)/);
+      for (var pi = 0; pi < pieces.length; pi++) {
+        var word = pieces[pi];
+        if (!word) continue;
+        if (word === '\n') { x = startX; y += lineHeight; continue; }
+        var ww = mctx.measureText(word).width;
+        if (word.trim() && x + ww > maxRight) { x = startX; y += lineHeight; }
+        if (!word.trim() && x === startX) continue;
+        wordSpans.push({ text: word, x: x, y: y });
+        x += ww;
+      }
     }
 
-    var delay = 120;
+    var delay = Math.max(35, Math.min(110, 7000 / Math.max(1, wordSpans.length)));
     for (var i = 0; i < wordSpans.length; i++) {
       var ws = wordSpans[i];
       var el = document.createElementNS(svgNS, 'text');
       el.setAttribute('x', ws.x);
       el.setAttribute('y', ws.y);
-      el.setAttribute('font-family', 'Dancing Script, cursive');
+      el.setAttribute('font-family', REPLY_FONT_FAMILY);
       el.setAttribute('font-size', REPLY_FONT_SIZE);
       el.setAttribute('fill', replyColor);
       el.style.opacity = '0';
@@ -859,31 +1129,169 @@
   }
 
   // ---- Settings panel ------------------------------------------------------
+  var setProfile = document.getElementById('set-profile');
+  var setProfileName = document.getElementById('set-profile-name');
+  var setProvider = document.getElementById('set-provider');
   var setKey = document.getElementById('set-key');
   var setBase = document.getElementById('set-base');
+  var setBaseWrap = document.getElementById('set-base-wrap');
   var setModel = document.getElementById('set-model');
   var setDark = document.getElementById('set-dark');
+  var settingsStatus = document.getElementById('settings-status');
+  var deleteProfileButton = document.getElementById('set-profile-delete');
+
+  function isCustomProvider(provider) {
+    return provider === 'custom' || provider === 'anthropic-custom';
+  }
+
+  function setSettingsStatus(message) {
+    settingsStatus.textContent = message || '';
+  }
+
+  function renderProfileSelect() {
+    setProfile.replaceChildren();
+    settings.profiles.forEach(function(profile) {
+      var option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = profile.name + ' · ' + providerLabel(profile.provider) + ' · ' + profile.model;
+      option.selected = profile.id === settings.activeProfileId;
+      setProfile.appendChild(option);
+    });
+    deleteProfileButton.disabled = settings.profiles.length <= 1;
+  }
+
+  function syncBaseVisibility() {
+    setBaseWrap.hidden = !isCustomProvider(setProvider.value);
+  }
+
+  function syncSettingsForm() {
+    var profile = currentProfile();
+    renderProfileSelect();
+    setProfileName.value = profile.name;
+    setProvider.value = profile.provider;
+    setProvider.dataset.previous = profile.provider;
+    setModel.value = profile.model;
+    setKey.value = profile.apiKey;
+    setBase.value = profile.baseUrl;
+    setDark.checked = settings.dark;
+    syncBaseVisibility();
+    setSettingsStatus('');
+  }
+
+  function validCustomBase(profile) {
+    if (!isCustomProvider(profile.provider) || !profile.apiKey) return true;
+    if (!profile.baseUrl) {
+      setSettingsStatus('使用自定义协议时，请填写 Base URL。');
+      return false;
+    }
+    try {
+      var url = new URL(profile.baseUrl);
+      if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw new Error();
+    } catch(e) {
+      setSettingsStatus('Base URL 必须是公开的 HTTPS 地址，且不能包含账号、密码或片段。');
+      return false;
+    }
+    return true;
+  }
+
+  function persistSettingsForm(validate) {
+    var profile = currentProfile();
+    profile.name = (setProfileName.value.trim() || '未命名连接').slice(0, 40);
+    profile.provider = PROVIDERS[setProvider.value] ? setProvider.value : 'openai';
+    profile.model = (setModel.value.trim() || PROVIDERS[profile.provider].model).slice(0, 200);
+    profile.apiKey = setKey.value.trim().slice(0, 10000);
+    profile.baseUrl = setBase.value.trim().replace(/\/+$/, '').slice(0, 2048);
+    settings.dark = setDark.checked;
+    if (validate && !validCustomBase(profile)) return false;
+    saveSettings(settings);
+    return true;
+  }
 
   function openSettings() {
-    setKey.value = settings.apiKey;
-    setBase.value = settings.baseUrl;
-    setModel.value = settings.model;
-    setDark.checked = settings.dark;
+    syncSettingsForm();
     settingsEl.classList.add('open');
+    setTimeout(function() { setProfileName.focus(); }, 40);
   }
-  function closeSettings() { settingsEl.classList.remove('open'); }
+  function closeSettings() {
+    settingsEl.classList.remove('open');
+    setSettingsStatus('');
+  }
 
   gearEl.addEventListener('click', openSettings);
   document.getElementById('set-cancel').addEventListener('click', closeSettings);
   document.getElementById('set-save').addEventListener('click', function() {
-    settings.apiKey = setKey.value.trim();
-    settings.baseUrl = setBase.value.trim() || DEFAULTS.baseUrl;
-    settings.model = setModel.value.trim() || DEFAULTS.model;
-    settings.dark = setDark.checked;
-    saveSettings(settings);
+    if (!persistSettingsForm(true)) return;
     applyTheme();
     closeSettings();
   });
+
+  setProfile.addEventListener('change', function(event) {
+    persistSettingsForm(false);
+    if (settings.profiles.some(function(profile) { return profile.id === event.target.value; })) {
+      settings.activeProfileId = event.target.value;
+      saveSettings(settings);
+    }
+    syncSettingsForm();
+  });
+
+  document.getElementById('set-profile-new').addEventListener('click', function() {
+    if (settings.profiles.length >= 30) {
+      setSettingsStatus('最多保存 30 套连接。');
+      return;
+    }
+    persistSettingsForm(false);
+    var profile = normalizeProfile({
+      id: createProfileId(),
+      name: '连接 ' + (settings.profiles.length + 1),
+      provider: 'openai',
+    }, settings.profiles.length);
+    settings.profiles.push(profile);
+    settings.activeProfileId = profile.id;
+    saveSettings(settings);
+    syncSettingsForm();
+    setProfileName.select();
+  });
+
+  document.getElementById('set-profile-copy').addEventListener('click', function() {
+    if (settings.profiles.length >= 30) {
+      setSettingsStatus('最多保存 30 套连接。');
+      return;
+    }
+    persistSettingsForm(false);
+    var source = currentProfile();
+    var copy = normalizeProfile(Object.assign({}, source, {
+      id: createProfileId(),
+      name: (source.name + ' 副本').slice(0, 40),
+    }), settings.profiles.length);
+    settings.profiles.push(copy);
+    settings.activeProfileId = copy.id;
+    saveSettings(settings);
+    syncSettingsForm();
+  });
+
+  deleteProfileButton.addEventListener('click', function() {
+    if (settings.profiles.length <= 1) {
+      setSettingsStatus('至少保留一套连接。');
+      return;
+    }
+    var removedId = settings.activeProfileId;
+    settings.profiles = settings.profiles.filter(function(profile) { return profile.id !== removedId; });
+    settings.activeProfileId = settings.profiles[0].id;
+    saveSettings(settings);
+    syncSettingsForm();
+  });
+
+  setProvider.addEventListener('change', function() {
+    var previous = setProvider.dataset.previous;
+    var previousModel = PROVIDERS[previous] ? PROVIDERS[previous].model : '';
+    if (!setModel.value.trim() || setModel.value.trim() === previousModel) {
+      setModel.value = PROVIDERS[setProvider.value].model;
+    }
+    setProvider.dataset.previous = setProvider.value;
+    syncBaseVisibility();
+    setSettingsStatus('');
+  });
+
   settingsEl.addEventListener('click', function(e) {
     if (e.target === settingsEl) closeSettings();
   });
@@ -912,7 +1320,7 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js').catch(function(error) {
-        console.warn('Service worker registration failed:', error);
+        console.warn('离线服务注册失败：', error);
       });
     });
   }

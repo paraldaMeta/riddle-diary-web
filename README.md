@@ -1,45 +1,46 @@
-# Riddle Diary Web
+# The Diary
 
-An enchanted, handwritten AI diary for the browser. Write with a stylus, finger, or mouse; after a short pause the page absorbs your ink and streams a handwritten reply.
+一款可以手写交流的魔法日记网页。使用手写笔、手指或鼠标写下问题，停笔片刻后，页面会吸收墨迹，让视觉模型辨认文字，并以汤姆·里德尔日记的口吻回应。
 
-**Live site:** [https://riddle-diary-web.cotalk.workers.dev](https://riddle-diary-web.cotalk.workers.dev)
+**在线体验：** [https://riddle-diary-web.cotalk.workers.dev](https://riddle-diary-web.cotalk.workers.dev)
 
-This repository preserves the history of [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web), a browser adaptation of [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) for the reMarkable Paper Pro. It is the starting point for our own product experiments.
+本仓库保留了 [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web) 的历史；该项目是 [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) 在 reMarkable Paper Pro 上的概念所衍生出的浏览器版本。
 
-> This is an unofficial fan-made technical experiment. It is not affiliated with or endorsed by J. K. Rowling, Warner Bros., Wizarding World, Anthropic, or Cloudflare.
+> 这是非官方的粉丝技术实验，与 J. K. Rowling、Warner Bros.、Wizarding World、Anthropic 或 Cloudflare 均无隶属或背书关系。
 
-## Current baseline
+## 当前功能
 
-- Pressure-sensitive drawing through Pointer Events
-- Ink fade after 2.8 seconds of inactivity
-- Vision-model handwriting recognition
-- Streaming, word-by-word handwritten replies
-- Dark OLED and parchment themes
-- Installable PWA with offline app-shell support
-- BYOK support for OpenAI, OpenRouter, Groq, and NVIDIA NIM
-- Cloudflare Worker proxy with provider allowlisting, bounded request bodies, security headers, and structured error logging
+- 基于 Pointer Events 的压感手写
+- 停笔 2.8 秒后吸收墨迹
+- 视觉模型辨认手写内容
+- 中文流式回复与逐字墨迹动画
+- OLED 纯黑和羊皮纸主题
+- 可安装 PWA 与离线应用外壳
+- 最多保存 30 套 API 连接，并可新增、复制、删除和切换
+- 支持 Anthropic Claude、OpenAI、Google Gemini、自定义 OpenAI 兼容协议和自定义 Claude 协议
+- Cloudflare Worker 负责请求大小限制、公开 HTTPS 地址校验、内网目标拦截及错误日志
 
-The public deployment is currently **BYOK-only**. Open the settings panel and supply a restricted API key for a vision-capable model. The key is stored in your browser's `localStorage` and relayed through this Worker; use a key with a spending limit.
+公开部署目前以用户自备 API 密钥为主。密钥与连接配置只保存在当前浏览器的 `localStorage`，请求经本站 Worker 临时转发；建议使用设置了额度上限的受限密钥。所选模型必须支持图片输入。
 
-Install it from the browser's app/install menu. On supported Chromium browsers, an **Install** button also appears in the top-left corner. The interface opens offline after the first successful visit; AI replies still require a network connection.
+可以从浏览器的应用菜单安装。在支持安装事件的 Chromium 浏览器中，页面左上角也会出现“安装”按钮。首次成功打开后，界面可以离线启动，但 AI 回复仍需联网。
 
-## Run locally
+## 本地运行
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Open `http://localhost:8787`.
+打开 `http://localhost:8787`。
 
-Useful checks:
+常用检查：
 
 ```bash
 npm run types
 npm run check
 ```
 
-## Deploy to Cloudflare
+## 部署到 Cloudflare
 
 ```bash
 npm ci
@@ -47,82 +48,81 @@ npm run check
 npm run deploy
 ```
 
-Wrangler reads the Worker name and compatibility settings from `wrangler.jsonc`.
+Wrangler 会从 `wrangler.jsonc` 读取 Worker 名称、静态资源目录和兼容性设置。
 
-Optionally configure a server-side default provider so visitors do not need their own key:
+如需为访客提供无需自备密钥的默认通道，可选择设置服务端密钥：
 
 ```bash
 npx wrangler secret put NVIDIA_API_KEY
 npx wrangler secret put OPENROUTER_API_KEY
 ```
 
-Secrets are optional and must never be committed. Without them, `/api/ask` returns `503` and the UI asks the visitor to use BYOK.
+密钥是可选项，绝不能提交到 Git。未设置时，`/api/ask` 返回 `503`，界面会提示访客在设置中填写自己的 API 密钥。
 
-## How it works
+## 工作流程
 
 ```text
-Canvas handwriting
-  → 2.8 seconds idle
-  → ink fades
-  → canvas exported as PNG
-  → vision LLM reads the page
-  → reply streams back
-  → SVG handwriting appears word by word
+手写内容
+  → 停笔 2.8 秒
+  → 墨迹淡出
+  → 画布导出为 PNG
+  → 视觉模型辨认页面
+  → 模型流式返回中文回复
+  → SVG 墨迹逐字浮现
 ```
 
-The Worker exposes two same-origin endpoints:
+Worker 暴露两个同源接口：
 
-| Endpoint | Purpose |
+| 接口 | 用途 |
 |---|---|
-| `POST /api/ask` | Uses an optional server-side NVIDIA or OpenRouter secret |
-| `POST /api/proxy` | Relays a visitor's BYOK request to an allowlisted provider |
+| `POST /api/ask` | 使用可选的服务端 NVIDIA 或 OpenRouter 密钥 |
+| `POST /api/proxy` | 按当前连接的协议临时转发用户自备密钥请求 |
 
-Cloudflare serves the PWA shell directly from `src/` as static assets. `src/.assetsignore` keeps the server-side Worker entry point out of the public asset bundle, while `src/_headers` applies the CSP and PWA cache headers.
+Cloudflare 从 `src/` 直接提供 PWA 静态资源。`src/.assetsignore` 防止服务端 `worker.js` 进入公开资源包，`src/_headers` 负责 CSP、安全响应头和 PWA 缓存策略。
 
-## Compatible providers
+## API 连接
 
-The selected model must accept image input.
-
-| Provider | Base URL |
+| 配置项 | 行为 |
 |---|---|
-| OpenAI | `https://api.openai.com/v1` |
-| OpenRouter | `https://openrouter.ai/api/v1` |
-| Groq | `https://api.groq.com/openai/v1` |
-| NVIDIA NIM | `https://integrate.api.nvidia.com/v1` |
+| Anthropic Claude | 自动使用官方 `/v1/messages` 协议 |
+| OpenAI | 自动使用官方 `/v1/chat/completions` 协议 |
+| Google Gemini | 自动使用官方 `streamGenerateContent` 协议 |
+| 自定义（OpenAI 兼容） | Base URL 可填写兼容服务的 `/v1` 地址或完整 `/chat/completions` 地址 |
+| 自定义（Claude 协议） | Base URL 支持裸域名、`/v1` 或完整 `/v1/messages` 地址 |
 
-Local Ollama and arbitrary OpenAI-compatible hosts are intentionally disabled in this baseline because a public unrestricted proxy can be abused. We can add a safe local-direct path later.
+自定义目标必须是公开 HTTPS 地址；本机、内网、私有 IP 和不符合所选协议路径的目标会在 Worker 层被拒绝。
 
-## Gestures
+## 操作
 
-| Action | Result |
+| 动作 | 结果 |
 |---|---|
-| Write, then rest the pen | The diary absorbs the ink and answers |
-| Flip the pen or right-click | Erase |
-| Draw a small `?` | Show the built-in guide |
-| Press `Escape` | Clear the page |
-| Tap `⚙` | Open provider and theme settings |
+| 写完后停笔 | 日记吸收墨迹并回答 |
+| 翻转手写笔或右键 | 擦除 |
+| 画一个较小的 `?` | 重新显示内置提示 |
+| 按 `Escape` | 清空页面 |
+| 点击 `⚙` | 打开连接和主题设置 |
 
-## Project layout
+## 项目结构
 
 ```text
 riddle-diary-web/
 ├── src/
-│   ├── icons/                  # SVG source plus 32/180/192/512 PNG icons
-│   ├── index.html              # Canvas UI, install prompt, drawing and reply animation
-│   ├── manifest.webmanifest    # PWA identity and install metadata
-│   ├── sw.js                   # Offline shell and cache lifecycle
-│   ├── _headers                # Static-asset security and cache headers
-│   ├── .assetsignore           # Prevents Worker source from being uploaded as an asset
-│   └── worker.js               # Default backend and restricted BYOK proxy
-├── worker-configuration.d.ts # Generated Cloudflare runtime types
-├── wrangler.jsonc           # Worker configuration
+│   ├── icons/                  # SVG 源图与 32/180/192/512 PNG 图标
+│   ├── index.html              # 中文界面、连接档案、手写与回复动画
+│   ├── manifest.webmanifest    # PWA 身份和安装信息
+│   ├── sw.js                   # 离线应用外壳与缓存生命周期
+│   ├── _headers                # 静态资源安全头和缓存规则
+│   ├── .assetsignore           # 防止 Worker 源码作为静态资源公开
+│   └── worker.js               # 默认后端与受限 BYOK 转发
+├── worker-configuration.d.ts   # 自动生成的 Cloudflare 运行时类型
+├── wrangler.jsonc              # Worker 配置
 ├── package.json
-└── LICENSE                  # MIT; retains the upstream copyright notice
+└── LICENSE                     # MIT；保留上游版权声明
 ```
 
-## Credits
+## 致谢
 
-- reMarkable concept and original implementation: [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle)
-- Browser adaptation: [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web)
-- Reply font: [Dancing Script](https://github.com/googlefonts/DancingScript), SIL Open Font License 1.1
-- Code license: MIT
+- reMarkable 概念与最初实现：[MaximeRivest/riddle](https://github.com/MaximeRivest/riddle)
+- 浏览器版本：[farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web)
+- 英文标题字体：[Dancing Script](https://github.com/googlefonts/DancingScript)，SIL Open Font License 1.1
+- 代码许可证：MIT

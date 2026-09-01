@@ -1,9 +1,9 @@
 {
   "id": "/",
   "name": "The Diary",
-  "short_name": "Diary",
-  "description": "An enchanted handwritten diary that writes back.",
-  "lang": "en",
+  "short_name": "The Diary",
+  "description": "一本会辨认手写内容并回应你的魔法日记。",
+  "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",

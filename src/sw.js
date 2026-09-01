@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'riddle-diary-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v1';
+const CACHE_NAME = CACHE_PREFIX + 'v2';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -59,7 +59,7 @@ async function networkFirstPage(request) {
   } catch {
     return (await caches.match(request)) ||
       (await caches.match('/')) ||
-      new Response('The diary is offline.', {
+      new Response('日记目前处于离线状态。', {
         status: 503,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
