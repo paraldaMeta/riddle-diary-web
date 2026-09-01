@@ -327,11 +327,10 @@
         <button id="set-save" class="primary">Save</button>
       </div>
       <div class="note">
-        Enter any OpenAI-compatible API key + base URL.<br>
+        Enter an API key + base URL for OpenAI, OpenRouter, Groq, or NVIDIA NIM.<br>
         The model <b>must support vision/image input</b>.<br>
-        Tested with OpenRouter, Groq, OpenAI, NVIDIA NIM, and local Ollama
-        (<code>http://localhost:11434/v1</code>).<br>
-        <small>Note: Ollama Cloud models don't support vision yet — use a local Ollama install with <code>llava</code> or <code>moondream</code>.</small>
+        Your key is saved only in this browser's local storage and relayed through this Worker when you write.<br>
+        <small>Use a restricted key with a spending limit. Local Ollama support will be added separately.</small>
       </div>
     </div>
   </div>
@@ -449,7 +448,13 @@
   }
 
   function showStatus(msg, dots) {
-    statusEl.innerHTML = msg + (dots ? '<span id="thinking-dots"><span></span><span></span><span></span></span>' : '');
+    statusEl.replaceChildren(document.createTextNode(msg));
+    if (dots) {
+      var dotsEl = document.createElement('span');
+      dotsEl.id = 'thinking-dots';
+      dotsEl.append(document.createElement('span'), document.createElement('span'), document.createElement('span'));
+      statusEl.appendChild(dotsEl);
+    }
     statusEl.classList.add('visible');
   }
   function hideStatus() { statusEl.classList.remove('visible'); }
@@ -706,7 +711,7 @@
     };
 
     // No API key → use default backend (key stored server-side)
-    // Has API key → route through CORS proxy to their provider
+    // Has API key → route through the same-origin provider proxy
     var resp;
     try {
       if (!settings.apiKey) {

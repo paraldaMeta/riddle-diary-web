@@ -1,13 +1,16 @@
 {
-  "name": "riddle-web",
-  "version": "1.0.0",
-  "description": "Tom Riddle's diary — web port. Write on screen, the diary answers in handwritten ink.",
+  "name": "riddle-diary-web",
+  "version": "0.1.0",
+  "description": "An enchanted, handwritten AI diary running on Cloudflare Workers.",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run",
+    "types": "wrangler types"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "@types/node": "^26.4.0",
+    "wrangler": "^4.128.0"
   }
 }

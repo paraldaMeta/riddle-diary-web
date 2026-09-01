@@ -1,10 +1,37 @@
 // ============================================================
 //  riddle-web — Cloudflare Worker
-//  Serves app + CORS proxy + default NVIDIA NIM backend
-//  Key stored as secret, never exposed to client
+//  Serves app + restricted provider proxy + optional default backends
+//  Server keys are stored as Worker secrets and never exposed to clients
 // ============================================================
 
 import HTML from './index.html';
+
+const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
+const ALLOWED_PROXY_HOSTS = new Set([
+  'api.openai.com',
+  'api.groq.com',
+  'integrate.api.nvidia.com',
+  'openrouter.ai',
+]);
+
+const HTML_HEADERS = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Cache-Control': 'public, max-age=300',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://unpkg.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src https://fonts.gstatic.com",
+    "connect-src 'self'",
+    "img-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+};
 
 const SYSTEM_PROMPT =
   'You are a sentient page in an enchanted diary. You have been alone in this book for a very long time. Now someone has written to you. ' +
@@ -35,47 +62,50 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        },
-      });
-    }
+    try {
+      // Default path: POST /api/ask — uses a stored provider key when configured.
+      if (url.pathname === '/api/ask' && request.method === 'POST') {
+        return await handleDefaultAsk(request, env);
+      }
 
-    // Default path: POST /api/ask — uses stored NVIDIA key (no user key needed)
-    if (url.pathname === '/api/ask' && request.method === 'POST') {
-      return handleDefaultAsk(request, env);
-    }
+      // BYOK path: POST /api/proxy — forwards only to approved vision providers.
+      if (url.pathname === '/api/proxy' && request.method === 'POST') {
+        return await handleProxy(request);
+      }
 
-    // BYOK path: POST /api/proxy — user has their own key
-    if (url.pathname === '/api/proxy' && request.method === 'POST') {
-      return handleProxy(request);
-    }
+      if ((url.pathname === '/' || url.pathname === '/index.html') && (request.method === 'GET' || request.method === 'HEAD')) {
+        return new Response(request.method === 'HEAD' ? null : HTML, { headers: HTML_HEADERS });
+      }
 
-    return new Response(HTML, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',
-      },
-    });
+      return jsonError('Not found', 404);
+    } catch (error) {
+      if (error instanceof RequestError) {
+        return jsonError(error.message, error.status);
+      }
+
+      console.error(JSON.stringify({
+        message: 'unhandled request error',
+        path: url.pathname,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+      return jsonError('Internal server error', 500);
+    }
   },
 };
 
 // ---- Default: fallback chain (NVIDIA → OpenRouter free) -------------------
 async function handleDefaultAsk(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonError('Invalid JSON', 400);
+  const body = await readJsonRequest(request);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new RequestError('Invalid JSON object', 400);
   }
 
   const image = body.image;
-  if (!image || !image.startsWith('data:image/')) {
-    return jsonError('Missing image', 400);
+  if (typeof image !== 'string' || !/^data:image\/(?:png|jpeg|webp);base64,/.test(image)) {
+    throw new RequestError('Missing or unsupported image', 400);
+  }
+  if (image.length > MAX_REQUEST_BYTES) {
+    throw new RequestError('Image is too large', 413);
   }
 
   const payload = {
@@ -102,6 +132,7 @@ async function handleDefaultAsk(request, env) {
     try {
       const resp = await fetch(provider.url + '/chat/completions', {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'Authorization': 'Bearer ' + provider.key,
           'Content-Type': 'application/json',
@@ -115,16 +146,15 @@ async function handleDefaultAsk(request, env) {
           headers: {
             'Content-Type': resp.headers.get('Content-Type') || 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*',
           },
         });
       }
       // If rate limited (429), try next provider
       if (resp.status === 429) continue;
-      // Other error — return it
-      const errText = await resp.text();
+      // Other error — return a bounded diagnostic snippet.
+      const errText = await readResponseSnippet(resp, 2048);
       return jsonError('The diary is silent: ' + errText.slice(0, 200), resp.status);
-    } catch (err) {
+    } catch {
       // Network error — try next provider
       continue;
     }
@@ -135,24 +165,33 @@ async function handleDefaultAsk(request, env) {
 
 // ---- BYOK: proxy to user's own API ----------------------------------------
 async function handleProxy(request) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonError('Invalid JSON', 400);
+  const body = await readJsonRequest(request);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new RequestError('Invalid JSON object', 400);
   }
 
   const targetUrl = body.url;
   const apiKey = body.apiKey;
   const payload = body.payload;
 
-  if (!targetUrl || !apiKey || !payload) {
-    return jsonError('Missing url, apiKey, or payload', 400);
+  if (
+    typeof targetUrl !== 'string' ||
+    typeof apiKey !== 'string' ||
+    apiKey.length === 0 ||
+    apiKey.length > 4096 ||
+    !payload ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
+    throw new RequestError('Missing url, apiKey, or payload', 400);
   }
 
+  const providerUrl = validateProviderUrl(targetUrl);
+
   try {
-    const resp = await fetch(targetUrl, {
+    const resp = await fetch(providerUrl, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         'Authorization': 'Bearer ' + apiKey,
         'Content-Type': 'application/json',
@@ -165,17 +204,124 @@ async function handleProxy(request) {
       headers: {
         'Content-Type': resp.headers.get('Content-Type') || 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*',
       },
     });
   } catch (err) {
-    return jsonError('Proxy failed: ' + err.message, 502);
+    console.error(JSON.stringify({
+      message: 'provider proxy failed',
+      provider: new URL(providerUrl).hostname,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+    return jsonError('The diary could not reach that provider', 502);
+  }
+}
+
+function validateProviderUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new RequestError('Invalid provider URL', 400);
+  }
+
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.port ||
+    !ALLOWED_PROXY_HOSTS.has(url.hostname) ||
+    !url.pathname.endsWith('/chat/completions')
+  ) {
+    throw new RequestError('Unsupported provider URL', 400);
+  }
+
+  return url.toString();
+}
+
+async function readJsonRequest(request) {
+  const declaredLength = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    throw new RequestError('Request is too large', 413);
+  }
+
+  if (!request.body) {
+    throw new RequestError('Missing request body', 400);
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let bytesRead = 0;
+  let text = '';
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+
+      bytesRead += chunk.value.byteLength;
+      if (bytesRead > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        throw new RequestError('Request is too large', 413);
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new RequestError('Invalid JSON', 400);
+  }
+}
+
+async function readResponseSnippet(response, limit) {
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytesRead = 0;
+  let text = '';
+
+  try {
+    while (bytesRead < limit) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+
+      const remaining = limit - bytesRead;
+      const value = chunk.value.byteLength > remaining ? chunk.value.slice(0, remaining) : chunk.value;
+      bytesRead += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+
+      if (chunk.value.byteLength > remaining) {
+        await reader.cancel();
+        break;
+      }
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+class RequestError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = 'RequestError';
+    this.status = status;
   }
 }
 
 function jsonError(msg, status) {
   return new Response(JSON.stringify({ error: msg }), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }

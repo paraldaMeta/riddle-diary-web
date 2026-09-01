@@ -1,115 +1,118 @@
-# riddle-web
+# Riddle Diary Web
 
-**Tom Riddle's diary, in the browser.** Write on the screen with your finger or stylus. After a pause, the diary drinks your ink — your words fade — and a reply writes itself back in a flowing hand, then fades away.
+An enchanted, handwritten AI diary for the browser. Write with a stylus, finger, or mouse; after a short pause the page absorbs your ink and streams a handwritten reply.
 
-> **Live demo:** [https://tomriddle.f4b.workers.dev](https://tomriddle.f4b.workers.dev)
+**Live site:** [https://riddle-diary-web.cotalk.workers.dev](https://riddle-diary-web.cotalk.workers.dev)
 
-Web port of [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) (originally built for the reMarkable Paper Pro). Runs on any device with a browser — phones, tablets, desktops. Samsung S-Pen, Apple Pencil, and Wacom styli all get full pressure sensitivity.
+This repository preserves the history of [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web), a browser adaptation of [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) for the reMarkable Paper Pro. It is the starting point for our own product experiments.
 
-**BYOK (Bring Your Own Key):** Each user enters their own API key in the settings panel. No backend secrets. Deploy once, everyone uses it. Works out of the box with the built-in NVIDIA NIM backend — no key required.
+> This is an unofficial fan-made technical experiment. It is not affiliated with or endorsed by J. K. Rowling, Warner Bros., Wizarding World, Anthropic, or Cloudflare.
 
-## Deploy
+## Current baseline
+
+- Pressure-sensitive drawing through Pointer Events
+- Ink fade after 2.8 seconds of inactivity
+- Vision-model handwriting recognition
+- Streaming, word-by-word handwritten replies
+- Dark OLED and parchment themes
+- BYOK support for OpenAI, OpenRouter, Groq, and NVIDIA NIM
+- Cloudflare Worker proxy with provider allowlisting, bounded request bodies, security headers, and structured error logging
+
+The public deployment is currently **BYOK-only**. Open the settings panel and supply a restricted API key for a vision-capable model. The key is stored in your browser's `localStorage` and relayed through this Worker; use a key with a spending limit.
+
+## Run locally
 
 ```bash
-npm install
-# Optional but recommended: set a default backend so visitors don't need a key.
-# Without these, the app is BYOK-only (users must enter their own key in ⚙).
-echo "nvapi-…" | npx wrangler secret put NVIDIA_API_KEY
-echo "sk-or-…" | npx wrangler secret put OPENROUTER_API_KEY   # fallback
-npx wrangler deploy
+npm ci
+npm run dev
 ```
 
-You'll get `https://tomriddle.<your-subdomain>.workers.dev`.
+Open `http://localhost:8787`.
 
-## Using it
+Useful checks:
 
-1. Open the URL on any device
-2. Tap the ⚙ gear (top-right corner)
-3. Enter your API key + base URL + model (optional — works without a key via the built-in NVIDIA backend)
-4. Write on the page, rest your pen, and the diary answers
+```bash
+npm run types
+npm run check
+```
+
+## Deploy to Cloudflare
+
+```bash
+npm ci
+npm run check
+npm run deploy
+```
+
+Wrangler reads the Worker name and compatibility settings from `wrangler.jsonc`.
+
+Optionally configure a server-side default provider so visitors do not need their own key:
+
+```bash
+npx wrangler secret put NVIDIA_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY
+```
+
+Secrets are optional and must never be committed. Without them, `/api/ask` returns `503` and the UI asks the visitor to use BYOK.
 
 ## How it works
 
-```
-Write on canvas → 2.8s idle → ink fades → PNG sent to vision LLM → reply streams back word-by-word in Dancing Script → fades away
+```text
+Canvas handwriting
+  → 2.8 seconds idle
+  → ink fades
+  → canvas exported as PNG
+  → vision LLM reads the page
+  → reply streams back
+  → SVG handwriting appears word by word
 ```
 
-The entire app is a single HTML file (`src/index.html`). The Cloudflare Worker (`src/worker.js`) serves it and provides two API endpoints:
+The Worker exposes two same-origin endpoints:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/ask` | Default backend — uses NVIDIA NIM with a server-side secret (no user key needed) |
-| `POST /api/proxy` | BYOK — forwards to user's own API with CORS headers (for providers like OpenAI that don't send CORS) |
+| `POST /api/ask` | Uses an optional server-side NVIDIA or OpenRouter secret |
+| `POST /api/proxy` | Relays a visitor's BYOK request to an allowlisted provider |
 
 ## Compatible providers
 
-| Provider | Base URL | CORS from browser? | Notes |
-|---|---|---|---|
-| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | ✅ Yes | Default backend — free tier, no key needed for visitors |
-| **OpenRouter** | `https://openrouter.ai/api/v1` | ✅ Yes | Use any model with `openai/` prefix |
-| **Groq** | `https://api.groq.com/openai/v1` | ✅ Yes | Fast inference, vision models available |
-| **OpenAI** | `https://api.openai.com/v1` | ❌ No | Routed through `/api/proxy` automatically |
-| **Ollama (local)** | `http://localhost:11434/v1` | ⚠️ Same machine only | `OLLAMA_ORIGINS=*` env var required |
-| **Any OpenAI-compatible** | varies | check provider docs | Must support vision input |
+The selected model must accept image input.
 
-### Ollama setup
+| Provider | Base URL |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| NVIDIA NIM | `https://integrate.api.nvidia.com/v1` |
 
-```bash
-# Enable CORS in Ollama
-OLLAMA_ORIGINS="*" ollama serve
-
-# Or set it permanently in your environment
-export OLLAMA_ORIGINS="*"
-```
-
-Then in the diary settings, use `http://localhost:11434/v1` as the base URL and your vision model name (e.g. `llama3.2-vision`).
-
-## Features
-
-- ✍️ **Full pressure sensitivity** via Pointer Events API (S-Pen, Apple Pencil, Wacom, touch)
-- 🌙 **OLED black mode** — pure black background (`#000`) turns off Samsung OLED pixels for battery savings
-- 🔑 **BYOK** — each user brings their own key, stored in localStorage
-- 📱 **Works on any device** — phones, tablets, desktops
-- 🎭 **Tom Riddle persona** — enigmatic, mysterious, in-character
-- 🖋️ **Dancing Script** handwriting font for replies
-- ⚡ **Streaming** — reply appears word-by-word as it streams from the LLM
-- 🔒 **No backend secrets** — deploy without setting any API keys
+Local Ollama and arbitrary OpenAI-compatible hosts are intentionally disabled in this baseline because a public unrestricted proxy can be abused. We can add a safe local-direct path later.
 
 ## Gestures
 
-| Do this | And |
+| Action | Result |
 |---|---|
-| Write, then rest your pen | The diary drinks your ink and Tom replies |
-| Flip the pen / right-click | Erase |
-| Draw a small **?** | Summon the built-in guide |
-| Press `Escape` | Clear everything |
-| Tap **⚙** | Settings (API key, model, theme) |
+| Write, then rest the pen | The diary absorbs the ink and answers |
+| Flip the pen or right-click | Erase |
+| Draw a small `?` | Show the built-in guide |
+| Press `Escape` | Clear the page |
+| Tap `⚙` | Open provider and theme settings |
 
-## Deploy to other platforms
+## Project layout
 
-This is a single static HTML file. Deploy anywhere:
-
-- **Cloudflare Pages:** `npx wrangler pages deploy src/index.html`
-- **GitHub Pages:** Push `src/index.html` to a repo, enable Pages
-- **Vercel:** `vercel deploy src/index.html`
-- **Netlify:** Drag `src/index.html` to the deploy dropzone
-- **Any web server:** Just serve `src/index.html`
-
-## Architecture
-
-```
-riddle-web/
+```text
+riddle-diary-web/
 ├── src/
-│   ├── index.html    # Full app: canvas, drawing, idle detect, ink fade,
-│   │                 # PNG export, SSE streaming, SVG reply animation,
-│   │                 # settings panel, OLED dark mode, BYOK
-│   └── worker.js     # Cloudflare Worker: serves index.html + /api/ask + /api/proxy
-├── wrangler.toml
-└── package.json
+│   ├── index.html              # Canvas UI, drawing, fade, stream parser, reply animation
+│   └── worker.js               # HTML server, default backend, restricted BYOK proxy
+├── worker-configuration.d.ts # Generated Cloudflare runtime types
+├── wrangler.jsonc           # Worker configuration
+├── package.json
+└── LICENSE                  # MIT; retains the upstream copyright notice
 ```
 
 ## Credits
 
-- Original concept: [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) for reMarkable Paper Pro
-- Reply font: [Dancing Script](https://github.com/googlefonts/DancingScript) (SIL OFL 1.1)
-- License: MIT
+- reMarkable concept and original implementation: [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle)
+- Browser adaptation: [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web)
+- Reply font: [Dancing Script](https://github.com/googlefonts/DancingScript), SIL Open Font License 1.1
+- Code license: MIT
