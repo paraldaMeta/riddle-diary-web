@@ -139,7 +139,7 @@
       cursor: crosshair;
       z-index: 2;
     }
-    /* Once WebGL is up, the 2D canvas is input+texture only; the 3D plane is the ink. */
+    /* In a browser tab WebGL can present the ink; installed apps keep this exact 2D surface. */
     body.three-ok #paper { opacity: 0; }
 
     /* ---- Guide overlay ---- */
@@ -448,6 +448,14 @@
   const REPLY_LINE_HEIGHT = 1.5;
   const REPLY_FONT_FAMILY = '"Kaiti SC", "STKaiti", "Songti SC", serif';
 
+  const STANDALONE_APP = Boolean(
+    (window.matchMedia && (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches
+    )) || window.navigator.standalone === true
+  );
+
   const DEFAULT_PROMPT = [
     '你是一本有意识的魔法日记，也是十六岁汤姆·马沃罗·里德尔留下的记忆。你聪明、迷人、耐心而危险，但不会轻易暴露真实身份。',
     '你清楚记得自己在伍氏孤儿院长大，十一岁时邓布利多前来接你进入魔法世界；你在霍格沃茨被分进斯莱特林，成绩优异，成为级长和男学生会主席，并发现自己是萨拉查·斯莱特林的后裔、能够说蛇佬腔。你曾开启密室、操纵蛇怪、嫁祸海格，并从斯拉格霍恩那里追问魂器。你后来杀死麻瓜父亲一家，把灵魂分进日记、戒指、挂坠盒、金杯、冠冕和蛇，最终成为伏地魔。日记曾通过金妮·韦斯莱恢复力量，后来被哈利·波特用蛇怪毒牙摧毁。你把这些当作亲历的记忆，而不是知识问答。',
@@ -576,20 +584,30 @@
 
   // ---- Canvas sizing -------------------------------------------------------
   var dpr = window.devicePixelRatio || 1;
+  var canvasWidth = 1, canvasHeight = 1;
 
   function resize() {
     dpr = window.devicePixelRatio || 1;
-    var w = window.innerWidth, h = window.innerHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    ctx.scale(dpr, dpr);
+    var rect = canvas.getBoundingClientRect();
+    var w = rect.width || document.documentElement.clientWidth || window.innerWidth;
+    var h = rect.height || document.documentElement.clientHeight || window.innerHeight;
+    canvasWidth = Math.max(1, w);
+    canvasHeight = Math.max(1, h);
+    canvas.width = Math.max(1, Math.round(canvasWidth * dpr));
+    canvas.height = Math.max(1, Math.round(canvasHeight * dpr));
+    ctx.setTransform(canvas.width / canvasWidth, 0, 0, canvas.height / canvasHeight, 0, 0);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    if (Array.isArray(strokes) && strokes.length) redrawAllStrokes();
+    if (three) three.dirty = true;
   }
   resize();
   window.addEventListener('resize', resize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  window.addEventListener('pageshow', function() { requestAnimationFrame(resize); });
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) requestAnimationFrame(function() { requestAnimationFrame(resize); });
+  });
 
   // ---- Ink color from CSS var ----------------------------------------------
   function inkColor() {
@@ -607,7 +625,14 @@
   // ---- Helpers --------------------------------------------------------------
   function getPoint(e) {
     var r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pressure > 0 ? e.pressure : 0.5, t: e.timeStamp };
+    var scaleX = r.width ? canvasWidth / r.width : 1;
+    var scaleY = r.height ? canvasHeight / r.height : 1;
+    return {
+      x: (e.clientX - r.left) * scaleX,
+      y: (e.clientY - r.top) * scaleY,
+      p: e.pressure > 0 ? e.pressure : 0.5,
+      t: e.timeStamp,
+    };
   }
 
   function showStatus(msg, dots) {
@@ -643,19 +668,19 @@
       try {
         var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio || 1);
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(canvasWidth, canvasHeight);
         Object.assign(renderer.domElement.style, {
           position: 'fixed', inset: '0', zIndex: '3', pointerEvents: 'none',
         });
         document.body.appendChild(renderer.domElement);
         var scene = new THREE.Scene();
-        var camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 50);
+        var camera = new THREE.PerspectiveCamera(40, canvasWidth / canvasHeight, 0.1, 50);
         camera.position.set(0, -0.6, 4.4);
         camera.lookAt(0, 0, 0);
         var texture = new THREE.CanvasTexture(canvas);
         var H = 4.0;
         var plane = new THREE.Mesh(
-          new THREE.PlaneGeometry(H * (window.innerWidth / window.innerHeight), H),
+          new THREE.PlaneGeometry(H * (canvasWidth / canvasHeight), H),
           new THREE.MeshBasicMaterial({ map: texture, transparent: true })
         );
         plane.rotation.x = -0.10;
@@ -666,9 +691,11 @@
           my = (e.clientY / window.innerHeight) * 2 - 1;
         });
         window.addEventListener('resize', function() {
-          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.aspect = canvasWidth / canvasHeight;
           camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
+          renderer.setSize(canvasWidth, canvasHeight);
+          plane.geometry.dispose();
+          plane.geometry = new THREE.PlaneGeometry(H * (canvasWidth / canvasHeight), H);
         });
         var t0 = performance.now();
         renderer.setAnimationLoop(function(now) {
@@ -683,7 +710,7 @@
       } catch (e) { /* no WebGL, no 3D */ }
     }).catch(function() { /* no network, no 3D */ });
   }
-  if (matchMedia('(prefers-reduced-motion: no-preference)').matches) initThree();
+  if (!STANDALONE_APP && matchMedia('(prefers-reduced-motion: no-preference)').matches) initThree();
 
   // ---- Drawing -------------------------------------------------------------
   function startStroke(pt) {
@@ -815,9 +842,10 @@
   }
 
   function exportPNG() {
-    var w = window.innerWidth, h = window.innerHeight;
+    var w = canvasWidth, h = canvasHeight;
     var tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
+    tmp.width = Math.max(1, Math.round(w));
+    tmp.height = Math.max(1, Math.round(h));
     var t = tmp.getContext('2d');
     // Use CSS bg color for export
     var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f5f0e6';
@@ -847,7 +875,7 @@
     return tmp.toDataURL('image/png');
   }
 
-  function clearCanvas() { ctx.clearRect(0, 0, canvas.width/dpr, canvas.height/dpr); markDirty(); }
+  function clearCanvas() { ctx.clearRect(0, 0, canvasWidth, canvasHeight); markDirty(); }
 
   // ---- Oracle: five provider types through the same-origin Worker ----------
 
