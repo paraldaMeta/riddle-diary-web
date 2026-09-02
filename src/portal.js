@@ -253,8 +253,8 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     const unavailable = !config?.auth?.turnstileSiteKey;
     section(`
       <div class="portal-auth-prologue">
-        <h3 class="portal-ink-prompt" data-ink-reveal="先让我记住你。"></h3>
-        <p class="portal-ink-copy" data-ink-reveal="留下一个可以找回的身份。首次验证后，书页会赠你三次提问。"></p>
+        <h3 class="portal-ink-prompt" data-ink-reveal="你是谁。"></h3>
+        <p class="portal-ink-copy" data-ink-reveal="告诉我吧，你的真名，我可以回答你3次问题。"></p>
       </div>
       ${authTabs()}
       <form class="portal-form portal-auth-ui" id="portal-auth-form">
