@@ -24,7 +24,7 @@ export default {
         return await handleDefaultAsk(request, env);
       }
 
-      // BYOK path: POST /api/proxy — forwards only to approved vision providers.
+      // BYOK path: POST /api/proxy — forwards to a validated provider endpoint.
       if (url.pathname === '/api/proxy' && request.method === 'POST') {
         return await handleProxy(request);
       }
@@ -84,7 +84,7 @@ async function handleDefaultAsk(request, env) {
     try {
       const resp = await fetch(provider.url + '/chat/completions', {
         method: 'POST',
-        redirect: 'error',
+        redirect: 'manual',
         headers: {
           'Authorization': 'Bearer ' + provider.key,
           'Content-Type': 'application/json',
@@ -92,6 +92,15 @@ async function handleDefaultAsk(request, env) {
         body: JSON.stringify({ ...payload, model: provider.model }),
       });
 
+      if (isRedirectStatus(resp.status)) {
+        if (resp.body) await resp.body.cancel();
+        console.error(JSON.stringify({
+          message: 'default provider returned redirect',
+          provider: new URL(provider.url).hostname,
+          status: resp.status,
+        }));
+        continue;
+      }
       if (resp.ok) {
         return new Response(resp.body, {
           status: resp.status,
@@ -160,10 +169,22 @@ async function handleProxy(request) {
   try {
     const resp = await fetch(providerUrl, {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       headers,
       body: JSON.stringify(payload),
+      signal: request.signal,
     });
+
+    if (isRedirectStatus(resp.status)) {
+      if (resp.body) await resp.body.cancel();
+      console.error(JSON.stringify({
+        message: 'provider proxy blocked redirect',
+        provider: upstreamHost,
+        protocol,
+        status: resp.status,
+      }));
+      return jsonError('模型提供方返回了重定向。为保护 API 密钥，日记没有继续转发。', 502);
+    }
 
     return new Response(resp.body, {
       status: resp.status,
@@ -182,6 +203,10 @@ async function handleProxy(request) {
     }));
     return jsonError('日记无法连接到该模型提供方', 502);
   }
+}
+
+function isRedirectStatus(status) {
+  return status >= 300 && status < 400;
 }
 
 function validateProviderUrl(value, protocol) {
