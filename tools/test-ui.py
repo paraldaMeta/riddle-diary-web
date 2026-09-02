@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
-BASE = "http://localhost:8787"
+BASE = os.environ.get("TEST_BASE_URL", "http://localhost:8787").rstrip("/")
 OUT = Path(".wrangler/ui-tests")
 OUT.mkdir(parents=True, exist_ok=True)
 
