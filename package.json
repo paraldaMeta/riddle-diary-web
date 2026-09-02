@@ -1,12 +1,14 @@
 {
   "name": "riddle-diary-web",
   "version": "0.3.0",
-  "description": "An enchanted, handwritten AI diary running on Cloudflare Workers.",
+  "description": "A handwritten geomancy answer book running on Cloudflare Workers.",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "check": "wrangler deploy --dry-run",
+    "test": "node tools/test-geomancy.mjs",
     "types": "wrangler types"
   },
   "devDependencies": {

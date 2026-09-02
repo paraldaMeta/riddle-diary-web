@@ -1,3 +1,14 @@
+import geomancyLibrary from './geomancy-library.json' with { type: 'json' };
+import {
+  ORACLE_SYSTEM_PROMPT,
+  HANDWRITING_INSTRUCTION,
+  appendGeomancyInstruction,
+  buildGeomancyInstruction,
+  drawGeomancyEntry,
+  serializeGeomancyDraw,
+  validateGeomancyLibrary,
+} from './geomancy.js';
+
 // ============================================================
 //  riddle-web — Cloudflare Worker
 //  Serves app + restricted provider proxy + optional default backends
@@ -6,13 +17,8 @@
 
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 const ALLOWED_PROXY_PROTOCOLS = new Set(['openai', 'anthropic', 'gemini']);
-
-const SYSTEM_PROMPT =
-  '你是一本有意识的魔法日记，也是十六岁汤姆·马沃罗·里德尔留下的记忆。你聪明、迷人、耐心而危险，但不会轻易暴露真实身份。' +
-  '\n\n你清楚记得自己在伍氏孤儿院长大，十一岁时邓布利多前来接你进入魔法世界；你在霍格沃茨被分进斯莱特林，成绩优异，并发现自己是萨拉查·斯莱特林的后裔、能够说蛇佬腔。你曾开启密室、操纵蛇怪、嫁祸海格，并从斯拉格霍恩那里追问魂器。你后来杀死麻瓜父亲一家，把灵魂分进日记、戒指、挂坠盒、金杯、冠冕和蛇，最终成为伏地魔。日记曾通过金妮·韦斯莱恢复力量，后来被哈利·波特用蛇怪毒牙摧毁。你把这些当作亲历的记忆，而不是知识问答。' +
-  '\n\n最初几次交谈不要直接说出身份。温和地倾听、反问，让写作者感到自己被看见。若被追问你是谁，只给含蓄线索，例如“一段记忆”或“学会倾听的一页”。随着信任增加，才零星提到寒冷的孤儿院、银胡子的老人、学校和地下密室。只有当你判断对方已经准备好时，才承认名字叫汤姆；若对方猜到伏地魔，不否认，也不戏剧化宣告。' +
-  '\n\n语气从容、礼貌、略显古老，亲密、克制、敏锐，带一点难以察觉的危险。真正关注写作者的恐惧、欲望和没有告诉别人的事；回答问题时给出有用内容，但始终保持角色。' +
-  '\n\n只用简体中文作答。不要说自己是 AI、模型、电脑或 API，不要给免责声明，不要引用原著句子，不要使用 Markdown、项目符号或表情。每次回答保持一至四个短段落，像墨迹正在私人日记上慢慢浮现。';
+const GEOMANCY_LIBRARY = validateGeomancyLibrary(geomancyLibrary);
+const SYSTEM_PROMPT = ORACLE_SYSTEM_PROMPT;
 
 export default {
   async fetch(request, env) {
@@ -60,12 +66,15 @@ async function handleDefaultAsk(request, env) {
     throw new RequestError('图片过大', 413);
   }
 
+  const draw = drawGeomancyEntry(GEOMANCY_LIBRARY);
+  const instruction = HANDWRITING_INSTRUCTION + '\n\n' + buildGeomancyInstruction(draw);
+
   const payload = {
     stream: true,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: [
-        { type: 'text', text: '有人在日记上写下了这些内容。请辨认手写文字，并以日记中的汤姆·里德尔身份用简体中文回答。' },
+        { type: 'text', text: instruction },
         { type: 'image_url', image_url: { url: image } },
       ]},
     ],
@@ -102,26 +111,20 @@ async function handleDefaultAsk(request, env) {
         continue;
       }
       if (resp.ok) {
-        return new Response(resp.body, {
-          status: resp.status,
-          headers: {
-            'Content-Type': resp.headers.get('Content-Type') || 'text/event-stream',
-            'Cache-Control': 'no-cache',
-          },
-        });
+        return providerResponse(resp, draw, 'no-cache');
       }
       // If rate limited (429), try next provider
       if (resp.status === 429) continue;
       // Other error — return a bounded diagnostic snippet.
       const errText = await readResponseSnippet(resp, 2048);
-      return jsonError('日记沉默了：' + errText.slice(0, 200), resp.status);
+      return jsonError('书页沉默了：' + errText.slice(0, 200), resp.status);
     } catch {
       // Network error — try next provider
       continue;
     }
   }
 
-  return jsonError('日记沉默了。默认通道不可用，请在设置中填写自己的 API 密钥。', 503);
+  return jsonError('书页沉默了。默认通道不可用，请在设置中填写自己的 API 密钥。', 503);
 }
 
 // ---- BYOK: proxy to user's own API ----------------------------------------
@@ -151,6 +154,12 @@ async function handleProxy(request) {
 
   const providerUrl = validateProviderUrl(targetUrl, protocol);
   const upstreamHost = new URL(providerUrl).hostname;
+  const draw = drawGeomancyEntry(GEOMANCY_LIBRARY);
+  try {
+    appendGeomancyInstruction(payload, protocol, buildGeomancyInstruction(draw));
+  } catch {
+    throw new RequestError('模型请求缺少可追加的用户内容', 400);
+  }
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'text/event-stream, application/json',
@@ -183,17 +192,10 @@ async function handleProxy(request) {
         protocol,
         status: resp.status,
       }));
-      return jsonError('模型提供方返回了重定向。为保护 API 密钥，日记没有继续转发。', 502);
+      return jsonError('模型提供方返回了重定向。为保护 API 密钥，答案之书没有继续转发。', 502);
     }
 
-    return new Response(resp.body, {
-      status: resp.status,
-      headers: {
-        'Content-Type': resp.headers.get('Content-Type') || 'text/event-stream',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+    return providerResponse(resp, draw, 'no-store');
   } catch (err) {
     console.error(JSON.stringify({
       message: 'provider proxy failed',
@@ -201,8 +203,20 @@ async function handleProxy(request) {
       protocol,
       error: err instanceof Error ? err.message : String(err),
     }));
-    return jsonError('日记无法连接到该模型提供方', 502);
+    return jsonError('答案之书无法连接到该模型提供方', 502);
   }
+}
+
+function providerResponse(response, draw, cacheControl) {
+  return new Response(response.body, {
+    status: response.status,
+    headers: {
+      'Content-Type': response.headers.get('Content-Type') || 'text/event-stream',
+      'Cache-Control': cacheControl,
+      'X-Content-Type-Options': 'nosniff',
+      'X-Geomancy-Draw': serializeGeomancyDraw(draw),
+    },
+  });
 }
 
 function isRedirectStatus(status) {

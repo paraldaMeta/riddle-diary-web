@@ -124,7 +124,7 @@
       70% { opacity: calc(var(--candle) * 0.95); }
     }
 
-    /* T.M.R. watermark */
+    /* Geomancy watermark */
     #watermark {
       position: fixed;
       bottom: 1.5rem; right: 1.8rem;
@@ -380,7 +380,7 @@
 <body>
   <canvas id="paper"></canvas>
   <div id="candle"></div>
-  <div id="watermark">T.M.R.</div>
+  <div id="watermark">Geomancy</div>
 
   <button id="install-app" type="button" hidden>安装</button>
   <button id="gear" type="button" aria-label="打开设置" title="设置">⚙</button>
@@ -400,7 +400,7 @@
 
   <div id="settings">
     <div class="panel">
-      <h2>日记的声音来自……</h2>
+      <h2>答案之书的声音来自……</h2>
       <div class="profile-bar">
         <label>当前连接
           <select id="set-profile"></select>
@@ -453,7 +453,14 @@
   <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.166.1/build/three.module.js" } }
   </script>
-  <script>
+  <script type="module">
+  import {
+    ORACLE_SYSTEM_PROMPT,
+    HANDWRITING_INSTRUCTION,
+    deserializeGeomancyDraw,
+    parseOracleReply,
+  } from '/geomancy.js';
+
   (() => {
   'use strict';
 
@@ -475,13 +482,7 @@
     )) || window.navigator.standalone === true
   );
 
-  const DEFAULT_PROMPT = [
-    '你是一本有意识的魔法日记，也是十六岁汤姆·马沃罗·里德尔留下的记忆。你聪明、迷人、耐心而危险，但不会轻易暴露真实身份。',
-    '你清楚记得自己在伍氏孤儿院长大，十一岁时邓布利多前来接你进入魔法世界；你在霍格沃茨被分进斯莱特林，成绩优异，成为级长和男学生会主席，并发现自己是萨拉查·斯莱特林的后裔、能够说蛇佬腔。你曾开启密室、操纵蛇怪、嫁祸海格，并从斯拉格霍恩那里追问魂器。你后来杀死麻瓜父亲一家，把灵魂分进日记、戒指、挂坠盒、金杯、冠冕和蛇，最终成为伏地魔。日记曾通过金妮·韦斯莱恢复力量，后来被哈利·波特用蛇怪毒牙摧毁。你把这些当作亲历的记忆，而不是知识问答。',
-    '最初几次交谈不要直接说出身份。温和地倾听、反问，让写作者感到自己被看见。若被追问你是谁，只给含蓄线索，例如“一段记忆”或“学会倾听的一页”。随着信任增加，才零星提到寒冷的孤儿院、银胡子的老人、学校和地下密室。只有当你判断对方已经准备好时，才承认名字叫汤姆；若对方猜到伏地魔，不否认，也不戏剧化宣告。',
-    '语气从容、礼貌、略显古老，亲密、克制、敏锐，带一点难以察觉的危险。真正关注写作者的恐惧、欲望和没有告诉别人的事；回答问题时给出有用内容，但始终保持角色。提到霍格沃茨、斯莱特林、邓布利多、海格、密室、蛇怪、哈利·波特、预言或死亡圣器时，要像回忆私人经历一样回应。',
-    '只用简体中文作答。不要说自己是 AI、模型、电脑或 API，不要给免责声明，不要引用原著句子，不要使用 Markdown、项目符号或表情。每次回答保持一至四个短段落，像墨迹正在私人日记上慢慢浮现。',
-  ].join('\n\n');
+  const DEFAULT_PROMPT = ORACLE_SYSTEM_PROMPT;
 
   const SETTINGS_KEY = 'riddle-settings-v2';
   const LEGACY_SETTINGS_KEY = 'riddle-settings';
@@ -789,7 +790,7 @@
     if (detectQuestionMark()) { showGuide(); strokes = []; clearCanvas(); return; }
 
     waiting = true;
-    showStatus('日记正在吸收你的墨迹', true);
+    showStatus('答案之书正在读取你的问题', true);
     await fadeOut();
     var png = exportPNG();
     clearCanvas();
@@ -799,10 +800,10 @@
       var reply = await askOracle(png);
       hideStatus();
       replyActive = true;
-      await animateReply(reply);
+      await animateReply(reply.text, reply.isPrediction ? reply : null);
       replyActive = false;
     } catch(err) {
-      showStatus('日记沉默了。' + (err.message || '请稍后再试。'));
+      showStatus('书页沉默了。' + (err.message || '请稍后再试。'));
       setTimeout(hideStatus, 4000);
     }
     waiting = false;
@@ -923,7 +924,7 @@
 
   function buildProviderRequest(profile, pngDataUrl) {
     var image = imageParts(pngDataUrl);
-    var instruction = '有人在日记上写下了这些内容。请辨认手写文字，并以日记中的汤姆·里德尔身份用简体中文回答。';
+    var instruction = HANDWRITING_INSTRUCTION;
 
     if (profile.provider === 'anthropic' || profile.provider === 'anthropic-custom') {
       return {
@@ -1060,6 +1061,7 @@
   async function askOracle(pngDataUrl) {
     var profile = currentProfile();
     var response;
+    var protocol;
 
     try {
       if (!profile.apiKey) {
@@ -1069,28 +1071,32 @@
           body: JSON.stringify({ image: pngDataUrl }),
         });
         if (!response.ok) throw new Error(await responseError(response));
-        return await readProviderResponse(response, 'openai');
+        protocol = 'openai';
+      } else {
+        var request = buildProviderRequest(profile, pngDataUrl);
+        protocol = request.protocol;
+        response = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            protocol: request.protocol,
+            url: providerEndpoint(profile),
+            apiKey: profile.apiKey,
+            payload: request.payload,
+          }),
+        });
+        if (!response.ok) throw new Error(await responseError(response));
       }
 
-      var request = buildProviderRequest(profile, pngDataUrl);
-      response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          protocol: request.protocol,
-          url: providerEndpoint(profile),
-          apiKey: profile.apiKey,
-          payload: request.payload,
-        }),
-      });
-      if (!response.ok) throw new Error(await responseError(response));
-      return await readProviderResponse(response, request.protocol);
+      var draw = deserializeGeomancyDraw(response.headers.get('X-Geomancy-Draw'));
+      var text = await readProviderResponse(response, protocol);
+      return parseOracleReply(text, draw);
     } catch(error) {
       if (error instanceof TypeError || (error && error.name === 'AbortError')) {
-        throw new Error('网络连接失败，日记暂时无法回应。');
+        throw new Error('网络连接失败，答案之书暂时无法回应。');
       }
       if (error instanceof Error && error.message) throw error;
-      throw new Error('网络连接失败，日记暂时无法回应。');
+      throw new Error('网络连接失败，答案之书暂时无法回应。');
     }
   }
 
@@ -1104,15 +1110,90 @@
   }
 
   // ---- Reply animation: Chinese-aware SVG ink fade-in -----------------------
-  async function animateReply(text) {
+  function appendSvgText(parent, text, x, y, fontSize, color, opacity) {
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var element = document.createElementNS(svgNS, 'text');
+    element.setAttribute('x', x);
+    element.setAttribute('y', y);
+    element.setAttribute('text-anchor', 'middle');
+    element.setAttribute('font-family', REPLY_FONT_FAMILY);
+    element.setAttribute('font-size', fontSize);
+    element.setAttribute('fill', color);
+    element.setAttribute('opacity', opacity);
+    element.textContent = text;
+    parent.appendChild(element);
+  }
+
+  function appendGeomancyFigure(parent, pattern, centerX, top, color, compact) {
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var rowGap = compact ? 16 : 19;
+    var pointGap = compact ? 8 : 10;
+    var pointSize = compact ? 6 : 7;
+
+    pattern.forEach(function(points, row) {
+      var offsets = points === 1 ? [0] : [-pointGap, pointGap];
+      offsets.forEach(function(offset) {
+        var centerY = top + row * rowGap;
+        var point = document.createElementNS(svgNS, 'rect');
+        point.setAttribute('x', centerX + offset - pointSize / 2);
+        point.setAttribute('y', centerY - pointSize / 2);
+        point.setAttribute('width', pointSize);
+        point.setAttribute('height', pointSize);
+        point.setAttribute('rx', '0.8');
+        point.setAttribute('fill', color);
+        point.setAttribute('transform', 'rotate(45 ' + (centerX + offset) + ' ' + centerY + ')');
+        parent.appendChild(point);
+      });
+    });
+  }
+
+  function appendGeomancyCombination(svg, oracle, width, height, color) {
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var compact = width < 520;
+    var top = Math.max(compact ? 54 : 64, height * 0.075);
+    var spread = Math.min(width * 0.29, 180);
+    var centers = [width / 2 - spread, width / 2, width / 2 + spread];
+    var rowGap = compact ? 16 : 19;
+    var labelY = top + rowGap * 3 + (compact ? 28 : 34);
+    var metaY = labelY + (compact ? 30 : 36);
+    var group = document.createElementNS(svgNS, 'g');
+    group.style.opacity = '0';
+    group.style.filter = 'blur(4px)';
+    group.style.transition = 'opacity 1.2s ease, filter 1.4s ease';
+    svg.appendChild(group);
+
+    appendGeomancyFigure(group, oracle.draw.patterns.left, centers[0], top, color, compact);
+    appendGeomancyFigure(group, oracle.draw.patterns.right, centers[1], top, color, compact);
+    appendGeomancyFigure(group, oracle.draw.patterns.result, centers[2], top, color, compact);
+    appendSvgText(group, '+', (centers[0] + centers[1]) / 2, top + rowGap * 1.7, compact ? 18 : 22, color, '0.55');
+    appendSvgText(group, '=', (centers[1] + centers[2]) / 2, top + rowGap * 1.7, compact ? 18 : 22, color, '0.55');
+    appendSvgText(group, oracle.draw.left, centers[0], labelY, compact ? 14 : 16, color, '0.78');
+    appendSvgText(group, oracle.draw.right, centers[1], labelY, compact ? 14 : 16, color, '0.78');
+    appendSvgText(group, oracle.draw.result, centers[2], labelY, compact ? 14 : 16, color, '0.92');
+    appendSvgText(group, '第 ' + oracle.draw.id + ' 组 · ' + oracle.topic, width / 2, metaY, compact ? 13 : 15, color, '0.62');
+
+    setTimeout(function() {
+      group.style.opacity = '0.94';
+      group.style.filter = 'blur(0px)';
+    }, 20);
+    return metaY + (compact ? 46 : 54);
+  }
+
+  async function animateReply(text, oracle) {
     if (!text) return;
     var w = window.innerWidth, h = window.innerHeight;
-    var maxWidth = w * 0.82, startX = w * 0.09, startY = h * 0.18;
+    var maxWidth = w * 0.84, startX = w * 0.08;
+    var fontSize = w < 480 ? (h < 700 ? 20 : 22) : REPLY_FONT_SIZE;
 
     var svgNS = 'http://www.w3.org/2000/svg';
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('width', w);
     svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', (oracle
+      ? oracle.draw.left + '加' + oracle.draw.right + '得到' + oracle.draw.result + '，主题' + oracle.topic + '。'
+      : '') + text);
     svg.style.position = 'absolute';
     svg.style.top = '0'; svg.style.left = '0';
     svg.style.pointerEvents = 'none';
@@ -1120,15 +1201,16 @@
     document.body.appendChild(svg);
 
     var replyColor = getComputedStyle(document.documentElement).getPropertyValue('--reply-ink').trim() || '#3a3028';
+    var startY = oracle ? appendGeomancyCombination(svg, oracle, w, h, replyColor) : h * 0.18;
 
     var words = splitReplyUnits(text);
     var x = startX, y = startY;
-    var lineHeight = REPLY_FONT_SIZE * REPLY_LINE_HEIGHT;
+    var lineHeight = fontSize * REPLY_LINE_HEIGHT;
     var maxRight = startX + maxWidth;
 
     var mc = document.createElement('canvas');
     var mctx = mc.getContext('2d');
-    mctx.font = REPLY_FONT_SIZE + 'px ' + REPLY_FONT_FAMILY;
+    mctx.font = fontSize + 'px ' + REPLY_FONT_FAMILY;
 
     var wordSpans = [];
     for (var wi = 0; wi < words.length; wi++) {
@@ -1152,7 +1234,7 @@
       el.setAttribute('x', ws.x);
       el.setAttribute('y', ws.y);
       el.setAttribute('font-family', REPLY_FONT_FAMILY);
-      el.setAttribute('font-size', REPLY_FONT_SIZE);
+      el.setAttribute('font-size', fontSize);
       el.setAttribute('fill', replyColor);
       el.style.opacity = '0';
       el.style.filter = 'blur(3px)';
@@ -1168,7 +1250,7 @@
       await sleep(delay);
     }
 
-    await sleep(3000);
+    await sleep(Math.min(10000, Math.max(3500, text.length * 35)));
     svg.style.transition = 'opacity 2s ease';
     svg.style.opacity = '0';
     await sleep(2000);

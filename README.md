@@ -1,18 +1,21 @@
-# The Diary
+# The Book of Geomancy Answers
 
-一款可以手写交流的魔法日记网页。使用手写笔、手指或鼠标写下问题，停笔片刻后，页面会吸收墨迹，让视觉模型辨认文字，并以汤姆·里德尔日记的口吻回应。
+一本可以手写提问的地占答案之书。使用手写笔、手指或鼠标写下问题，停笔片刻后，页面会读取墨迹并让视觉模型辨认文字。预测性问题会随机抽取一组地占卦象，从对应主题中选择最接近的内容生成回答；普通问题则直接回答，不显示卦象。
 
 **在线体验：** [https://riddle-diary-web.cotalk.workers.dev](https://riddle-diary-web.cotalk.workers.dev)
 
 本仓库保留了 [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web) 的历史；该项目是 [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) 在 reMarkable Paper Pro 上的概念所衍生出的浏览器版本。
 
-> 这是非官方的粉丝技术实验，与 J. K. Rowling、Warner Bros.、Wizarding World、Anthropic 或 Cloudflare 均无隶属或背书关系。
+> 本项目由早期的非官方粉丝技术实验演变而来，与上游作品权利人、模型提供方或 Cloudflare 均无隶属或背书关系。地占结果仅供文化娱乐与自我反思，不构成医疗、法律、财务或人身安全建议。
 
 ## 当前功能
 
 - 基于 Pointer Events 的压感手写
 - 停笔 2.8 秒后吸收墨迹
 - 视觉模型辨认手写内容
+- Web Crypto 随机抽取 128 组地占组合之一
+- 预测问题按最接近主题生成回答，并显示“左卦＋右卦＝结果卦”
+- 非预测问题自动跳过卦象
 - 中文流式回复与逐字墨迹动画
 - OLED 纯黑和羊皮纸主题
 - 可安装 PWA 与离线应用外壳
@@ -36,6 +39,7 @@ npm run dev
 常用检查：
 
 ```bash
+npm test
 npm run types
 npm run check
 ```
@@ -66,8 +70,11 @@ npx wrangler secret put OPENROUTER_API_KEY
   → 停笔 2.8 秒
   → 墨迹淡出
   → 画布导出为 PNG
-  → 视觉模型辨认页面
-  → 模型流式返回中文回复
+  → Worker 用安全随机数固定一组地占组合
+  → 视觉模型辨认文字并判断是否属于预测问题
+      ├─ 预测问题：匹配该组合中最接近的主题
+      │             → 显示三组卦象与主题答案
+      └─ 普通问题：忽略抽取结果，直接回答
   → SVG 墨迹逐字浮现
 ```
 
@@ -78,7 +85,7 @@ Worker 暴露两个同源接口：
 | `POST /api/ask` | 使用可选的服务端 NVIDIA 或 OpenRouter 密钥 |
 | `POST /api/proxy` | 按当前连接的协议临时转发用户自备密钥请求 |
 
-Cloudflare 从 `src/` 直接提供 PWA 静态资源。`src/.assetsignore` 防止服务端 `worker.js` 进入公开资源包，`src/_headers` 负责 CSP、安全响应头和 PWA 缓存策略。
+Cloudflare 从 `src/` 直接提供 PWA 静态资源。`src/.assetsignore` 防止服务端 `worker.js` 和完整地占内容库进入公开资源包；每次只会把当前抽中的一组内容发送给模型。`src/_headers` 负责 CSP、安全响应头和 PWA 缓存策略。
 
 ## API 连接
 
@@ -96,7 +103,7 @@ Cloudflare 从 `src/` 直接提供 PWA 静态资源。`src/.assetsignore` 防止
 
 | 动作 | 结果 |
 |---|---|
-| 写完后停笔 | 日记吸收墨迹并回答 |
+| 写完后停笔 | 答案之书读取墨迹并回答 |
 | 翻转手写笔或右键 | 擦除 |
 | 画一个较小的 `?` | 重新显示内置提示 |
 | 按 `Escape` | 清空页面 |
@@ -108,12 +115,15 @@ Cloudflare 从 `src/` 直接提供 PWA 静态资源。`src/.assetsignore` 防止
 riddle-diary-web/
 ├── src/
 │   ├── icons/                  # SVG 源图与 32/180/192/512 PNG 图标
+│   ├── geomancy.js             # 抽卦、组合校验、模型协议与响应解析
+│   ├── geomancy-library.json   # 128 组卦象及主题内容，仅打包进 Worker
 │   ├── index.html              # 中文界面、连接档案、手写与回复动画
 │   ├── manifest.webmanifest    # PWA 身份和安装信息
 │   ├── sw.js                   # 离线应用外壳与缓存生命周期
 │   ├── _headers                # 静态资源安全头和缓存规则
-│   ├── .assetsignore           # 防止 Worker 源码作为静态资源公开
+│   ├── .assetsignore           # 防止 Worker 源码和内容库作为静态资源公开
 │   └── worker.js               # 默认后端与受限 BYOK 转发
+├── tools/test-geomancy.mjs     # 数据、随机数、协议和安全边界测试
 ├── worker-configuration.d.ts   # 自动生成的 Cloudflare 运行时类型
 ├── wrangler.jsonc              # Worker 配置
 ├── package.json
@@ -125,4 +135,5 @@ riddle-diary-web/
 - reMarkable 概念与最初实现：[MaximeRivest/riddle](https://github.com/MaximeRivest/riddle)
 - 浏览器版本：[farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web)
 - 英文标题字体：[Dancing Script](https://github.com/googlefonts/DancingScript)，SIL Open Font License 1.1
+- 中文提示字体：[霞鹜文楷](https://github.com/lxgw/LxgwWenKai)，SIL Open Font License 1.1
 - 代码许可证：MIT

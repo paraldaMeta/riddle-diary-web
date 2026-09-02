@@ -1,7 +1,8 @@
 const CACHE_PREFIX = 'riddle-diary-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v4';
+const CACHE_NAME = CACHE_PREFIX + 'v5';
 const APP_SHELL = [
   '/',
+  '/geomancy.js',
   '/manifest.webmanifest',
   '/fonts/lxgw-wenkai-hint.woff2',
   '/icons/icon.svg',
@@ -60,7 +61,7 @@ async function networkFirstPage(request) {
   } catch {
     return (await caches.match(request)) ||
       (await caches.match('/')) ||
-      new Response('日记目前处于离线状态。', {
+      new Response('答案之书目前处于离线状态。', {
         status: 503,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
