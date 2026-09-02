@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'riddle-diary-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v7';
+const CACHE_NAME = CACHE_PREFIX + 'v8';
 const APP_SHELL = [
   '/',
   '/geomancy.js',

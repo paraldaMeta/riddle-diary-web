@@ -180,6 +180,7 @@
       opacity: 0.92;
       text-shadow: var(--guide-shadow);
     }
+    #guide .title span { display: block; white-space: nowrap; }
     #guide .hint {
       font-family: 'LXGW WenKai Hint', 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
       font-size: clamp(1rem, 2.4vw, 1.2rem);
@@ -386,7 +387,10 @@
   <button id="gear" type="button" aria-label="打开设置" title="设置">⚙</button>
 
   <div id="guide">
-    <div class="title">The Geomancer’s Book of Answers</div>
+    <div class="title" aria-label="The Geomancer’s Book of Answers">
+      <span aria-hidden="true">The Geomancer’s</span>
+      <span aria-hidden="true">Book of Answers</span>
+    </div>
     <div class="hint">写上你的问题，地占答案之书将会为你解答。</div>
     <div class="gestures">
       <span>✍️ 写完后稍候</span>
