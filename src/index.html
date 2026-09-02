@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -12,27 +12,23 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/icons/icon-180.png" sizes="180x180">
+  <link rel="stylesheet" href="/fonts/lxgw-wenkai.css">
+  <link rel="stylesheet" href="/portal.css">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   <title>The Geomancer’s Book of Answers</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     @font-face {
       font-family: 'Dancing Script';
-      src: url('https://fonts.gstatic.com/s/dancingscript/v29/If2RXTr6YS-zF4S-kcSWSVi_szLgiuE.woff2') format('woff2');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: 'LXGW WenKai Hint';
-      src: url('/fonts/lxgw-wenkai-hint.woff2') format('woff2');
+      src: url('/fonts/dancing-script.woff2') format('woff2');
       font-weight: 400;
       font-style: normal;
       font-display: swap;
     }
     @font-face {
       font-family: 'Dancing Script';
-      src: url('https://fonts.gstatic.com/s/dancingscript/v29/If2RXTr6YS-zF4S-kcSWSVi_szLgiuE.woff2') format('woff2');
+      src: url('/fonts/dancing-script.woff2') format('woff2');
       font-weight: 700;
       font-style: normal;
       font-display: swap;
@@ -182,7 +178,7 @@
     }
     #guide .title span { display: block; white-space: nowrap; }
     #guide .hint {
-      font-family: 'LXGW WenKai Hint', 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
+      font-family: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
       font-size: clamp(1rem, 2.4vw, 1.2rem);
       font-weight: 400;
       letter-spacing: 0.06em;
@@ -226,24 +222,6 @@
       40% { opacity: 1; }
     }
 
-    /* ---- Settings gear ---- */
-    #gear {
-      position: fixed;
-      top: 0.5rem; right: 0.5rem;
-      width: 44px; height: 44px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.3rem;
-      color: var(--muted);
-      opacity: 0.3;
-      z-index: 30;
-      cursor: pointer;
-      transition: opacity 0.3s ease;
-      -webkit-tap-highlight-color: transparent;
-      border: 0;
-      background: transparent;
-    }
-    #gear:hover { opacity: 0.7; }
-
     /* ---- Install affordance (shown only when the browser offers PWA install) ---- */
     #install-app {
       position: fixed;
@@ -263,128 +241,16 @@
     #install-app:hover { opacity: 1; }
     #install-app[hidden] { display: none; }
 
-    /* ---- Settings panel ---- */
-    #settings {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-    #settings.open { display: flex; }
-    #settings .panel {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.5rem;
-      max-width: 680px;
-      max-height: min(88vh, 760px);
-      overflow-y: auto;
-      width: min(92%, 680px);
-      font-family: "Songti SC", "STSong", Georgia, serif;
-      color: var(--ink);
-    }
-    #settings h2 {
-      font-size: 1.1rem; font-style: italic; margin-bottom: 1rem;
-      color: var(--muted);
-    }
-    #settings label {
-      display: block; font-size: 0.75rem; color: var(--muted);
-      margin-top: 0.8rem; margin-bottom: 0.2rem;
-    }
-    #settings input, #settings select {
-      width: 100%; padding: 0.5rem 0.7rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      color: var(--ink);
-      font-size: 0.85rem;
-      font-family: monospace;
-    }
-    #settings input:focus, #settings select:focus { outline: none; border-color: var(--reply-ink); }
-    #settings .profile-bar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 0.65rem;
-      align-items: end;
-      padding: 0.8rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-    #settings .profile-bar label { margin: 0; }
-    #settings .profile-actions { display: flex; gap: 0.4rem; }
-    #settings .profile-actions button { min-width: 3.5rem; }
-    #settings .settings-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 0 0.75rem;
-    }
-    #settings .field-wide { grid-column: 1 / -1; }
-    #settings .field-base[hidden] { display: none; }
-    #settings .row {
-      display: flex; gap: 0.5rem; align-items: center;
-      margin-top: 1rem;
-    }
-    #settings .row label {
-      margin: 0; flex: 1; font-size: 0.85rem; color: var(--ink);
-    }
-    #settings .row input[type="checkbox"] { width: auto; }
-    #settings .actions {
-      display: flex; gap: 0.5rem; margin-top: 1.2rem;
-    }
-    #settings button {
-      flex: 1; padding: 0.6rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
-      color: var(--ink);
-      font-size: 0.85rem;
-      font-family: 'Georgia', serif;
-      cursor: pointer;
-    }
-    #settings button.primary {
-      background: var(--reply-ink);
-      color: var(--bg);
-      border-color: var(--reply-ink);
-    }
-    #settings button.danger { color: #b34f4f; }
-    #settings button:disabled { cursor: not-allowed; opacity: 0.45; }
-    #settings .settings-status {
-      min-height: 1.1rem;
-      margin-top: 0.55rem;
-      color: #b34f4f;
-      font-size: 0.72rem;
-      line-height: 1.45;
-    }
-    #settings .note {
-      font-size: 0.7rem; color: var(--muted); margin-top: 0.8rem;
-      line-height: 1.4; opacity: 0.7;
-    }
-    #settings a { color: var(--reply-ink); }
-    @media (max-width: 560px) {
-      #settings { align-items: flex-end; }
-      #settings .panel {
-        width: 100%; max-height: 92vh;
-        border-radius: 16px 16px 0 0;
-        padding: 1.1rem;
-      }
-      #settings .profile-bar, #settings .settings-grid { grid-template-columns: 1fr; }
-      #settings .field-wide { grid-column: auto; }
-      #settings .profile-actions button { min-width: 0; }
-    }
   </style>
 </head>
 <body>
   <canvas id="paper"></canvas>
   <div id="candle"></div>
-  <div id="watermark">Geomancy</div>
+  <div id="watermark">地占</div>
 
   <button id="install-app" type="button" hidden>安装</button>
-  <button id="gear" type="button" aria-label="打开设置" title="设置">⚙</button>
+  <button id="sound-button" type="button" aria-label="声音">音</button>
+  <button id="account-button" type="button" aria-label="打开帐号与声音">入</button>
 
   <div id="guide">
     <div class="title" aria-label="The Geomancer’s Book of Answers">
@@ -396,74 +262,20 @@
       <span>✍️ 写完后稍候</span>
       <span>🔄 翻转手写笔可擦除</span>
       <span>❓ 画一个问号查看提示</span>
-      <span>⚙ 配置自己的 API</span>
+      <span>帐 登录后赠送三次</span>
     </div>
   </div>
 
   <div id="status"></div>
 
-  <div id="settings">
-    <div class="panel">
-      <h2>答案之书的声音来自……</h2>
-      <div class="profile-bar">
-        <label>当前连接
-          <select id="set-profile"></select>
-        </label>
-        <div class="profile-actions">
-          <button id="set-profile-new" type="button">新增</button>
-          <button id="set-profile-copy" type="button">复制</button>
-          <button id="set-profile-delete" class="danger" type="button">删除</button>
-        </div>
-      </div>
-      <div class="settings-grid">
-        <label class="field-wide">连接名称
-          <input type="text" id="set-profile-name" maxlength="40" placeholder="例如：我的视觉模型" autocomplete="off">
-        </label>
-        <label>模型提供方
-          <select id="set-provider">
-            <option value="anthropic">Anthropic Claude</option>
-            <option value="openai">OpenAI</option>
-            <option value="gemini">Google Gemini</option>
-            <option value="custom">自定义（OpenAI 兼容）</option>
-            <option value="anthropic-custom">自定义（Claude 协议）</option>
-          </select>
-        </label>
-        <label>模型名称
-          <input type="text" id="set-model" placeholder="例如：gpt-4o" autocomplete="off">
-        </label>
-        <label class="field-wide">API 密钥
-          <input type="password" id="set-key" maxlength="10000" placeholder="仅保存在当前浏览器" autocomplete="off" spellcheck="false">
-        </label>
-        <label class="field-wide field-base" id="set-base-wrap">自定义 Base URL
-          <input type="url" id="set-base" placeholder="例如：https://api.example.com/v1" autocomplete="off" spellcheck="false">
-        </label>
-      </div>
-      <div class="row">
-        <label>OLED 纯黑模式</label>
-        <input type="checkbox" id="set-dark">
-      </div>
-      <div class="settings-status" id="settings-status" role="status" aria-live="polite"></div>
-      <div class="actions">
-        <button id="set-cancel">取消</button>
-        <button id="set-save" class="primary">保存设置</button>
-      </div>
-      <div class="note">
-        所选模型必须支持图片输入。连接配置和 API 密钥只保存在当前浏览器；请求经本站 Cloudflare Worker 临时转发，不写入数据库。<br>
-        <small>建议使用设有额度上限的受限密钥。未填写密钥时，会尝试站点默认通道（若已配置）。</small>
-      </div>
-    </div>
-  </div>
+  <div id="portal-root"></div>
 
   <script type="importmap">
   { "imports": { "three": "https://unpkg.com/three@0.166.1/build/three.module.js" } }
   </script>
   <script type="module">
-  import {
-    ORACLE_SYSTEM_PROMPT,
-    HANDWRITING_INSTRUCTION,
-    deserializeGeomancyDraw,
-    parseOracleReply,
-  } from '/geomancy.js';
+  import { createMusicController } from '/music.js';
+  import { createPortal } from '/portal.js';
 
   (() => {
   'use strict';
@@ -476,7 +288,8 @@
   const MIN_PRESSURE = 0.15;
   const REPLY_FONT_SIZE = 28;
   const REPLY_LINE_HEIGHT = 1.5;
-  const REPLY_FONT_FAMILY = '"Kaiti SC", "STKaiti", "Songti SC", serif';
+  const REPLY_FONT_FAMILY = '"LXGW WenKai Lite", "Kaiti SC", "STKaiti", serif';
+  const ENGLISH_REPLY_FONT_FAMILY = '"Dancing Script", cursive';
 
   const STANDALONE_APP = Boolean(
     (window.matchMedia && (
@@ -486,125 +299,18 @@
     )) || window.navigator.standalone === true
   );
 
-  const DEFAULT_PROMPT = ORACLE_SYSTEM_PROMPT;
-
-  const SETTINGS_KEY = 'riddle-settings-v2';
-  const LEGACY_SETTINGS_KEY = 'riddle-settings';
-  const PROVIDERS = {
-    anthropic: { label: 'Anthropic Claude', model: 'claude-sonnet-4-6' },
-    openai: { label: 'OpenAI', model: 'gpt-4o' },
-    gemini: { label: 'Google Gemini', model: 'gemini-2.0-flash' },
-    custom: { label: 'OpenAI 兼容', model: 'gpt-4o' },
-    'anthropic-custom': { label: 'Claude 兼容', model: 'claude-sonnet-4-6' },
-  };
-
-  function createProfileId() {
-    if (crypto && typeof crypto.randomUUID === 'function') return 'api-' + crypto.randomUUID();
-    var values = new Uint32Array(2);
-    crypto.getRandomValues(values);
-    return 'api-' + values[0].toString(36) + values[1].toString(36);
-  }
-
-  function normalizeProfile(value, index) {
-    value = value && typeof value === 'object' ? value : {};
-    var provider = PROVIDERS[value.provider] ? value.provider : 'openai';
-    return {
-      id: String(value.id || createProfileId()),
-      name: String(value.name || ('连接 ' + (index + 1))).slice(0, 40),
-      provider: provider,
-      model: String(value.model || PROVIDERS[provider].model).slice(0, 200),
-      apiKey: String(value.apiKey || '').slice(0, 10000),
-      baseUrl: String(value.baseUrl || '').slice(0, 2048),
-    };
-  }
-
-  function normalizeSettings(value) {
-    value = value && typeof value === 'object' ? value : {};
-    var profiles = Array.isArray(value.profiles)
-      ? value.profiles.slice(0, 30).map(normalizeProfile)
-      : [];
-    var seen = new Set();
-    profiles.forEach(function(profile) {
-      if (seen.has(profile.id)) profile.id = createProfileId();
-      seen.add(profile.id);
-    });
-    if (!profiles.length) {
-      profiles = [normalizeProfile({ id: 'default', name: '默认连接', provider: 'openai' }, 0)];
-    }
-    var activeProfileId = String(value.activeProfileId || profiles[0].id);
-    if (!profiles.some(function(profile) { return profile.id === activeProfileId; })) {
-      activeProfileId = profiles[0].id;
-    }
-    return {
-      version: 2,
-      dark: value.dark !== false,
-      activeProfileId: activeProfileId,
-      profiles: profiles,
-    };
-  }
-
-  function loadSettings() {
-    try {
-      var current = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
-      if (current) return normalizeSettings(current);
-
-      var legacy = JSON.parse(localStorage.getItem(LEGACY_SETTINGS_KEY) || 'null');
-      if (legacy) {
-        return normalizeSettings({
-          dark: legacy.dark,
-          activeProfileId: 'default',
-          profiles: [{
-            id: 'default',
-            name: '默认连接',
-            provider: 'custom',
-            model: legacy.model,
-            apiKey: legacy.apiKey,
-            baseUrl: legacy.baseUrl,
-          }],
-        });
-      }
-    } catch(e) {}
-    return normalizeSettings(null);
-  }
-
-  function saveSettings(value) {
-    settings = normalizeSettings(value || settings);
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      localStorage.removeItem(LEGACY_SETTINGS_KEY);
-    } catch (error) {
-      console.warn('无法将连接设置保存到当前浏览器。', error);
-    }
-    return settings;
-  }
-
-  function currentProfile() {
-    return settings.profiles.find(function(profile) {
-      return profile.id === settings.activeProfileId;
-    }) || settings.profiles[0];
-  }
-
-  function providerLabel(provider) {
-    return PROVIDERS[provider] ? PROVIDERS[provider].label : '未选择提供方';
-  }
-
-  var settings = loadSettings();
-
-  // Apply theme
-  function applyTheme() {
-    document.documentElement.setAttribute('data-theme', settings.dark ? 'dark' : 'light');
-    document.querySelector('meta[name="theme-color"]').setAttribute('content', settings.dark ? '#000000' : '#f5f0e6');
-  }
-  applyTheme();
+  // Remove browser-side provider credentials left by earlier versions.
+  try {
+    localStorage.removeItem('riddle-settings-v2');
+    localStorage.removeItem('riddle-settings');
+  } catch(e) {}
 
   // ---- DOM -----------------------------------------------------------------
   var canvas = document.getElementById('paper');
   var ctx = canvas.getContext('2d', { willReadFrequently: false });
   var guideEl = document.getElementById('guide');
   var statusEl = document.getElementById('status');
-  var gearEl = document.getElementById('gear');
   var installAppEl = document.getElementById('install-app');
-  var settingsEl = document.getElementById('settings');
 
   // ---- Canvas sizing -------------------------------------------------------
   var dpr = window.devicePixelRatio || 1;
@@ -645,6 +351,9 @@
   var currentStroke = null;
   var idleTimer = null;
   var waiting = false, replyActive = false;
+  var pendingRequestId = null;
+  var portal = null;
+  var guideHideTimer = null;
 
   // ---- Helpers --------------------------------------------------------------
   function getPoint(e) {
@@ -672,10 +381,14 @@
   function hideStatus() { statusEl.classList.remove('visible'); }
 
   function hideGuide() {
+    clearTimeout(guideHideTimer);
     guideEl.classList.add('hidden');
-    setTimeout(function() { guideEl.style.display = 'none'; }, 2000);
+    guideHideTimer = setTimeout(function() {
+      if (guideEl.classList.contains('hidden')) guideEl.style.display = 'none';
+    }, 2000);
   }
   function showGuide() {
+    clearTimeout(guideHideTimer);
     guideEl.style.display = 'flex';
     guideEl.classList.remove('hidden');
   }
@@ -751,6 +464,7 @@
 
   function startStroke(pt) {
     if (replyActive || waiting) return;
+    pendingRequestId = null;
     hideGuide();
     currentStroke = [pt];
     strokes.push(currentStroke);
@@ -797,6 +511,7 @@
   }
 
   function eraseAt(x, y) {
+    pendingRequestId = null;
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
@@ -819,21 +534,38 @@
 
     if (detectQuestionMark()) { showGuide(); strokes = []; clearCanvas(); return; }
 
+    if (!portal || !await portal.ensureCanAsk()) return;
+
     waiting = true;
     showStatus('答案之书正在读取你的问题', true);
-    await fadeOut();
+    var savedStrokes = strokes.map(function(stroke) {
+      return stroke.map(function(point) { return Object.assign({}, point); });
+    });
     var png = exportPNG();
+    pendingRequestId = pendingRequestId || (
+      crypto && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+    );
+    await fadeOut();
     clearCanvas();
     strokes = [];
 
     try {
-      var reply = await askOracle(png);
+      var reply = await askOracle(png, pendingRequestId);
+      pendingRequestId = null;
+      portal.updateAfterAnswer(reply);
       hideStatus();
       replyActive = true;
       await animateReply(reply.text, reply.isPrediction ? reply : null);
       replyActive = false;
     } catch(err) {
-      showStatus('书页沉默了。' + (err.message || '请稍后再试。'));
+      strokes = savedStrokes;
+      clearCanvas();
+      redrawAllStrokes();
+      markDirty();
+      portal.handleApiError(err);
+      showStatus(err.message || '书页沉默了，请稍后再试。');
       setTimeout(hideStatus, 4000);
     }
     waiting = false;
@@ -965,203 +697,30 @@
 
   function clearCanvas() { ctx.clearRect(0, 0, canvasWidth, canvasHeight); markDirty(); }
 
-  // ---- Oracle: five provider types through the same-origin Worker ----------
+  // ---- Oracle: one authenticated, same-origin server connection ------------
 
-  function imageParts(pngDataUrl) {
-    var match = String(pngDataUrl).match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) throw new Error('无法读取手写内容。');
-    return { mime: match[1], base64: match[2] };
-  }
-
-  function providerEndpoint(profile) {
-    var base;
-    if (profile.provider === 'anthropic') return 'https://api.anthropic.com/v1/messages';
-    if (profile.provider === 'openai') return 'https://api.openai.com/v1/chat/completions';
-    if (profile.provider === 'gemini') {
-      return 'https://generativelanguage.googleapis.com/v1beta/models/' +
-        encodeURIComponent(profile.model || PROVIDERS.gemini.model) + ':streamGenerateContent?alt=sse';
-    }
-
-    base = String(profile.baseUrl || '').trim().replace(/\/+$/, '');
-    if (!base) throw new Error('请先在设置中填写自定义 Base URL。');
-    if (profile.provider === 'anthropic-custom') {
-      return /\/messages$/i.test(base) ? base : (/\/v1$/i.test(base) ? base + '/messages' : base + '/v1/messages');
-    }
-    return /\/chat\/completions$/i.test(base) ? base : base + '/chat/completions';
-  }
-
-  function buildProviderRequest(profile, pngDataUrl) {
-    var image = imageParts(pngDataUrl);
-    var instruction = HANDWRITING_INSTRUCTION;
-
-    if (profile.provider === 'anthropic' || profile.provider === 'anthropic-custom') {
-      return {
-        protocol: 'anthropic',
-        payload: {
-          model: profile.model || PROVIDERS[profile.provider].model,
-          max_tokens: 1000,
-          stream: true,
-          system: DEFAULT_PROMPT,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: image.mime, data: image.base64 } },
-              { type: 'text', text: instruction },
-            ],
-          }],
-        },
-      };
-    }
-
-    if (profile.provider === 'gemini') {
-      return {
-        protocol: 'gemini',
-        payload: {
-          system_instruction: { parts: [{ text: DEFAULT_PROMPT }] },
-          contents: [{
-            role: 'user',
-            parts: [
-              { inline_data: { mime_type: image.mime, data: image.base64 } },
-              { text: instruction },
-            ],
-          }],
-          generationConfig: { maxOutputTokens: 1000, temperature: 0.7 },
-        },
-      };
-    }
-
-    return {
-      protocol: 'openai',
-      payload: {
-        model: profile.model || PROVIDERS[profile.provider].model,
-        stream: true,
-        messages: [
-          { role: 'system', content: DEFAULT_PROMPT },
-          { role: 'user', content: [
-            { type: 'image_url', image_url: { url: pngDataUrl } },
-            { type: 'text', text: instruction },
-          ]},
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
-      },
-    };
-  }
-
-  function textFromProviderJson(json, protocol, streaming) {
-    if (!json || typeof json !== 'object') return '';
-    if (protocol === 'anthropic') {
-      if (streaming && json.delta && typeof json.delta.text === 'string') return json.delta.text;
-      if (streaming && json.content_block && typeof json.content_block.text === 'string') return json.content_block.text;
-      return Array.isArray(json.content)
-        ? json.content.map(function(part) { return part && part.text ? part.text : ''; }).join('')
-        : '';
-    }
-    if (protocol === 'gemini') {
-      var parts = json.candidates && json.candidates[0] && json.candidates[0].content
-        ? json.candidates[0].content.parts
-        : [];
-      return Array.isArray(parts)
-        ? parts.map(function(part) { return part && part.text ? part.text : ''; }).join('')
-        : '';
-    }
-
-    var choice = json.choices && json.choices[0];
-    var message = choice ? (streaming ? choice.delta : choice.message) : null;
-    var content = message && message.content;
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) {
-      return content.map(function(part) { return part && (part.text || part.content) || ''; }).join('');
-    }
-    return typeof json.text === 'string' ? json.text : '';
-  }
-
-  async function responseError(response) {
-    var raw = '';
-    try { raw = await response.text(); } catch(e) {}
+  async function askOracle(pngDataUrl, requestId) {
     try {
-      var json = JSON.parse(raw);
-      var error = json && json.error;
-      if (typeof error === 'string') return error;
-      if (error && error.message) return error.message;
-      if (json && json.message) return json.message;
-    } catch(e) {}
-    return raw.slice(0, 180) || ('请求失败（HTTP ' + response.status + '）');
-  }
-
-  async function readProviderResponse(response, protocol) {
-    var contentType = response.headers.get('content-type') || '';
-    if (!response.body || contentType.includes('application/json')) {
-      var json = await response.json();
-      var complete = textFromProviderJson(json, protocol, false).trim();
-      if (!complete) throw new Error('模型没有返回可显示的正文。');
-      return complete;
-    }
-
-    var reader = response.body.getReader();
-    var decoder = new TextDecoder();
-    var buffer = '';
-    var fullReply = '';
-
-    function consume(line) {
-      var value = line.trim();
-      if (!value || value.startsWith(':') || value.startsWith('event:')) return;
-      if (value.startsWith('data:')) value = value.slice(5).trim();
-      if (!value || value === '[DONE]') return;
-      try { fullReply += textFromProviderJson(JSON.parse(value), protocol, true); } catch(e) {}
-    }
-
-    while (true) {
-      var chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-      var lines = buffer.split('\n');
-      buffer = lines.pop();
-      lines.forEach(consume);
-    }
-    buffer += decoder.decode();
-    consume(buffer);
-    fullReply = fullReply.trim();
-    if (!fullReply) throw new Error('模型没有返回可显示的正文，请确认所选模型支持图片输入。');
-    return fullReply;
-  }
-
-  async function askOracle(pngDataUrl) {
-    var profile = currentProfile();
-    var response;
-    var protocol;
-
-    try {
-      if (!profile.apiKey) {
-        response = await fetch('/api/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: pngDataUrl }),
-        });
-        if (!response.ok) throw new Error(await responseError(response));
-        protocol = 'openai';
-      } else {
-        var request = buildProviderRequest(profile, pngDataUrl);
-        protocol = request.protocol;
-        response = await fetch('/api/proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            protocol: request.protocol,
-            url: providerEndpoint(profile),
-            apiKey: profile.apiKey,
-            payload: request.payload,
-          }),
-        });
-        if (!response.ok) throw new Error(await responseError(response));
+      var response = await fetch('/api/ask', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: requestId, image: pngDataUrl }),
+      });
+      var payload = await response.json().catch(function() { return {}; });
+      if (!response.ok) {
+        var requestError = new Error(payload.error || ('请求失败（HTTP ' + response.status + '）'));
+        requestError.status = response.status;
+        requestError.code = payload.code || 'REQUEST_FAILED';
+        throw requestError;
       }
-
-      var draw = deserializeGeomancyDraw(response.headers.get('X-Geomancy-Draw'));
-      var text = await readProviderResponse(response, protocol);
-      return parseOracleReply(text, draw);
+      if (!payload.text) throw new Error('答案之书没有留下可显示的正文。');
+      return Object.assign({}, payload, { draw: payload.geomancy || null });
     } catch(error) {
       if (error instanceof TypeError || (error && error.name === 'AbortError')) {
-        throw new Error('网络连接失败，答案之书暂时无法回应。');
+        var networkError = new Error('网络连接失败，答案之书暂时无法回应。');
+        networkError.code = 'NETWORK_ERROR';
+        throw networkError;
       }
       if (error instanceof Error && error.message) throw error;
       throw new Error('网络连接失败，答案之书暂时无法回应。');
@@ -1175,6 +734,10 @@
       });
     }
     return String(text).match(/[\u3400-\u9fff]|[^\u3400-\u9fff\s]+|\s+/g) || [];
+  }
+
+  function replyFontFor(text) {
+    return /[A-Za-z]/.test(String(text)) ? ENGLISH_REPLY_FONT_FAMILY : REPLY_FONT_FAMILY;
   }
 
   // ---- Reply animation: Chinese-aware SVG ink fade-in -----------------------
@@ -1253,6 +816,16 @@
     var maxWidth = w * 0.84, startX = w * 0.08;
     var fontSize = w < 480 ? (h < 700 ? 20 : 22) : REPLY_FONT_SIZE;
 
+    if (document.fonts && document.fonts.load) {
+      await Promise.race([
+        Promise.all([
+          document.fonts.load(fontSize + 'px "LXGW WenKai Lite"', text),
+          document.fonts.load(fontSize + 'px "Dancing Script"', text),
+        ]),
+        sleep(3500),
+      ]);
+    }
+
     var svgNS = 'http://www.w3.org/2000/svg';
     var svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('width', w);
@@ -1278,8 +851,6 @@
 
     var mc = document.createElement('canvas');
     var mctx = mc.getContext('2d');
-    mctx.font = fontSize + 'px ' + REPLY_FONT_FAMILY;
-
     var wordSpans = [];
     for (var wi = 0; wi < words.length; wi++) {
       var pieces = String(words[wi] || '').split(/(\n)/);
@@ -1287,10 +858,12 @@
         var word = pieces[pi];
         if (!word) continue;
         if (word === '\n') { x = startX; y += lineHeight; continue; }
+        var family = replyFontFor(word);
+        mctx.font = fontSize + 'px ' + family;
         var ww = mctx.measureText(word).width;
         if (word.trim() && x + ww > maxRight) { x = startX; y += lineHeight; }
         if (!word.trim() && x === startX) continue;
-        wordSpans.push({ text: word, x: x, y: y });
+        wordSpans.push({ text: word, x: x, y: y, family: family });
         x += ww;
       }
     }
@@ -1301,7 +874,7 @@
       var el = document.createElementNS(svgNS, 'text');
       el.setAttribute('x', ws.x);
       el.setAttribute('y', ws.y);
-      el.setAttribute('font-family', REPLY_FONT_FAMILY);
+      el.setAttribute('font-family', ws.family);
       el.setAttribute('font-size', fontSize);
       el.setAttribute('fill', replyColor);
       el.style.opacity = '0';
@@ -1324,174 +897,6 @@
     await sleep(2000);
     svg.remove();
   }
-
-  // ---- Settings panel ------------------------------------------------------
-  var setProfile = document.getElementById('set-profile');
-  var setProfileName = document.getElementById('set-profile-name');
-  var setProvider = document.getElementById('set-provider');
-  var setKey = document.getElementById('set-key');
-  var setBase = document.getElementById('set-base');
-  var setBaseWrap = document.getElementById('set-base-wrap');
-  var setModel = document.getElementById('set-model');
-  var setDark = document.getElementById('set-dark');
-  var settingsStatus = document.getElementById('settings-status');
-  var deleteProfileButton = document.getElementById('set-profile-delete');
-
-  function isCustomProvider(provider) {
-    return provider === 'custom' || provider === 'anthropic-custom';
-  }
-
-  function setSettingsStatus(message) {
-    settingsStatus.textContent = message || '';
-  }
-
-  function renderProfileSelect() {
-    setProfile.replaceChildren();
-    settings.profiles.forEach(function(profile) {
-      var option = document.createElement('option');
-      option.value = profile.id;
-      option.textContent = profile.name + ' · ' + providerLabel(profile.provider) + ' · ' + profile.model;
-      option.selected = profile.id === settings.activeProfileId;
-      setProfile.appendChild(option);
-    });
-    deleteProfileButton.disabled = settings.profiles.length <= 1;
-  }
-
-  function syncBaseVisibility() {
-    setBaseWrap.hidden = !isCustomProvider(setProvider.value);
-  }
-
-  function syncSettingsForm() {
-    var profile = currentProfile();
-    renderProfileSelect();
-    setProfileName.value = profile.name;
-    setProvider.value = profile.provider;
-    setProvider.dataset.previous = profile.provider;
-    setModel.value = profile.model;
-    setKey.value = profile.apiKey;
-    setBase.value = profile.baseUrl;
-    setDark.checked = settings.dark;
-    syncBaseVisibility();
-    setSettingsStatus('');
-  }
-
-  function validCustomBase(profile) {
-    if (!isCustomProvider(profile.provider) || !profile.apiKey) return true;
-    if (!profile.baseUrl) {
-      setSettingsStatus('使用自定义协议时，请填写 Base URL。');
-      return false;
-    }
-    try {
-      var url = new URL(profile.baseUrl);
-      if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw new Error();
-    } catch(e) {
-      setSettingsStatus('Base URL 必须是公开的 HTTPS 地址，且不能包含账号、密码或片段。');
-      return false;
-    }
-    return true;
-  }
-
-  function persistSettingsForm(validate) {
-    var profile = currentProfile();
-    profile.name = (setProfileName.value.trim() || '未命名连接').slice(0, 40);
-    profile.provider = PROVIDERS[setProvider.value] ? setProvider.value : 'openai';
-    profile.model = (setModel.value.trim() || PROVIDERS[profile.provider].model).slice(0, 200);
-    profile.apiKey = setKey.value.trim().slice(0, 10000);
-    profile.baseUrl = setBase.value.trim().replace(/\/+$/, '').slice(0, 2048);
-    settings.dark = setDark.checked;
-    if (validate && !validCustomBase(profile)) return false;
-    saveSettings(settings);
-    return true;
-  }
-
-  function openSettings() {
-    syncSettingsForm();
-    settingsEl.classList.add('open');
-    setTimeout(function() { setProfileName.focus(); }, 40);
-  }
-  function closeSettings() {
-    settingsEl.classList.remove('open');
-    setSettingsStatus('');
-  }
-
-  gearEl.addEventListener('click', openSettings);
-  document.getElementById('set-cancel').addEventListener('click', closeSettings);
-  document.getElementById('set-save').addEventListener('click', function() {
-    if (!persistSettingsForm(true)) return;
-    applyTheme();
-    closeSettings();
-  });
-
-  setProfile.addEventListener('change', function(event) {
-    persistSettingsForm(false);
-    if (settings.profiles.some(function(profile) { return profile.id === event.target.value; })) {
-      settings.activeProfileId = event.target.value;
-      saveSettings(settings);
-    }
-    syncSettingsForm();
-  });
-
-  document.getElementById('set-profile-new').addEventListener('click', function() {
-    if (settings.profiles.length >= 30) {
-      setSettingsStatus('最多保存 30 套连接。');
-      return;
-    }
-    persistSettingsForm(false);
-    var profile = normalizeProfile({
-      id: createProfileId(),
-      name: '连接 ' + (settings.profiles.length + 1),
-      provider: 'openai',
-    }, settings.profiles.length);
-    settings.profiles.push(profile);
-    settings.activeProfileId = profile.id;
-    saveSettings(settings);
-    syncSettingsForm();
-    setProfileName.select();
-  });
-
-  document.getElementById('set-profile-copy').addEventListener('click', function() {
-    if (settings.profiles.length >= 30) {
-      setSettingsStatus('最多保存 30 套连接。');
-      return;
-    }
-    persistSettingsForm(false);
-    var source = currentProfile();
-    var copy = normalizeProfile(Object.assign({}, source, {
-      id: createProfileId(),
-      name: (source.name + ' 副本').slice(0, 40),
-    }), settings.profiles.length);
-    settings.profiles.push(copy);
-    settings.activeProfileId = copy.id;
-    saveSettings(settings);
-    syncSettingsForm();
-  });
-
-  deleteProfileButton.addEventListener('click', function() {
-    if (settings.profiles.length <= 1) {
-      setSettingsStatus('至少保留一套连接。');
-      return;
-    }
-    var removedId = settings.activeProfileId;
-    settings.profiles = settings.profiles.filter(function(profile) { return profile.id !== removedId; });
-    settings.activeProfileId = settings.profiles[0].id;
-    saveSettings(settings);
-    syncSettingsForm();
-  });
-
-  setProvider.addEventListener('change', function() {
-    var previous = setProvider.dataset.previous;
-    var previousModel = PROVIDERS[previous] ? PROVIDERS[previous].model : '';
-    if (!setModel.value.trim() || setModel.value.trim() === previousModel) {
-      setModel.value = PROVIDERS[setProvider.value].model;
-    }
-    setProvider.dataset.previous = setProvider.value;
-    syncBaseVisibility();
-    setSettingsStatus('');
-  });
-
-  settingsEl.addEventListener('click', function(e) {
-    if (e.target === settingsEl) closeSettings();
-  });
 
   // ---- PWA installation -----------------------------------------------------
   var pendingInstallPrompt = null;
@@ -1521,6 +926,64 @@
       });
     });
   }
+
+  // ---- Preserve the current page across OAuth and Stripe redirects ---------
+  const DRAFT_KEY = 'geomancer-external-draft-v1';
+  function saveExternalDraft() {
+    try {
+      if (!strokes.length) { localStorage.removeItem(DRAFT_KEY); return; }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        expiresAt: Date.now() + 2 * 60 * 60 * 1000,
+        requestId: pendingRequestId,
+        strokes: strokes.map(function(stroke) {
+          return stroke.map(function(point) {
+            return { x: point.x / canvasWidth, y: point.y / canvasHeight, p: point.p, t: point.t };
+          });
+        }),
+      }));
+    } catch(e) {}
+  }
+
+  function restoreExternalDraft() {
+    try {
+      var draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+      localStorage.removeItem(DRAFT_KEY);
+      if (!draft || draft.expiresAt < Date.now() || !Array.isArray(draft.strokes)) return;
+      strokes = draft.strokes.slice(0, 500).map(function(stroke) {
+        return Array.isArray(stroke) ? stroke.slice(0, 5000).map(function(point) {
+          var x = Number(point.x), y = Number(point.y), p = Number(point.p);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+          return {
+            x: Math.max(0, Math.min(1, x)) * canvasWidth,
+            y: Math.max(0, Math.min(1, y)) * canvasHeight,
+            p: Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : 0.5,
+            t: Number(point.t) || 0,
+          };
+        }).filter(Boolean) : [];
+      }).filter(function(stroke) { return stroke.length; });
+      pendingRequestId = typeof draft.requestId === 'string' ? draft.requestId : null;
+      if (strokes.length) {
+        clearCanvas();
+        redrawAllStrokes();
+        markDirty();
+        hideGuide();
+      }
+    } catch(e) {}
+  }
+
+  var music = createMusicController();
+  portal = createPortal({
+    music: music,
+    beforeExternal: saveExternalDraft,
+    restoreExternal: restoreExternalDraft,
+  });
+  window.addEventListener('geomancer:auth-open', function() {
+    cancelIdle();
+    hideGuide();
+  });
+  window.addEventListener('geomancer:auth-close', function() {
+    if (!strokes.length && !replyActive) showGuide();
+  });
 
   // ---- Pointer events ------------------------------------------------------
   canvas.addEventListener('pointerdown', function(e) {
@@ -1552,13 +1015,16 @@
 
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-      if (settingsEl.classList.contains('open')) { closeSettings(); return; }
+      if (portal && portal.isOpen()) { portal.close(); return; }
       cancelIdle(); clearCanvas(); strokes = [];
+      pendingRequestId = null;
       waiting = false; replyActive = false; hideStatus();
     }
   });
 
-  document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', function(e) {
+    if (!e.target.closest('.portal-drawer')) e.preventDefault();
+  }, { passive: false });
   scheduleIdle();
   })();
   </script>

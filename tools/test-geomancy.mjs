@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import geomancyLibrary from '../src/geomancy-library.json' with { type: 'json' };
-import worker from '../src/worker.js';
+import { CREDIT_PACKAGES, findPackage } from '../worker/config.js';
+import { creditsForRefund, parseStripeSignature, verifyWebhook } from '../worker/billing.js';
+import { hashPassword, verifyPassword } from '../worker/crypto.js';
+import { hmacSha256 } from '../worker/http.js';
+import { parseModelReply } from '../worker/oracle.js';
 import {
   ORACLE_SYSTEM_PROMPT,
   ORIGINAL_DIARY_SYSTEM_PROMPT,
@@ -111,80 +116,87 @@ assert.match(ORACLE_SYSTEM_PROMPT, /非预测问题，必须继续完全按照�
 assert.match(HANDWRITING_INSTRUCTION, /单个词、简短问候、英文或中英混合都是有效输入/);
 assert.doesNotMatch(HANDWRITING_INSTRUCTION, /不要复述无法确认的笔画/);
 
-const originalFetch = globalThis.fetch;
-let upstreamRequest;
-let upstreamCalls = 0;
-globalThis.fetch = async (url, init) => {
-  upstreamCalls += 1;
-  upstreamRequest = { url: String(url), init };
-  return new Response(JSON.stringify({
-    choices: [{ message: { content: '[[GEOMANCY:财富]]\n保持清醒，再迈出下一步。' } }],
-  }), { headers: { 'Content-Type': 'application/json' } });
-};
+const ordinaryModelReply = parseModelReply(
+  '[[GEOMANCY:NONE]]\n[[QUESTION:hello]]\n你终于还是写下了第一个词。', first,
+);
+assert.equal(ordinaryModelReply.question, 'hello');
+assert.equal(ordinaryModelReply.isPrediction, false);
+assert.equal(ordinaryModelReply.text, '你终于还是写下了第一个词。');
 
-try {
-  const image = 'data:image/png;base64,iVBORw0KGgo=';
-  const malformedResponse = await worker.fetch(new Request('https://book.test/api/proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      protocol: 'openai',
-      url: 'https://api.openai.com/v1/chat/completions',
-      apiKey: 'test-key',
-      payload: {},
-    }),
-  }));
-  assert.equal(malformedResponse.status, 400);
-  assert.equal(upstreamCalls, 0);
+const predictionModelReply = parseModelReply(
+  '[[GEOMANCY:财富]]\n[[QUESTION:今年收入会提高吗？]]\n先守住已有资源，再观察机会。', first,
+);
+assert.equal(predictionModelReply.question, '今年收入会提高吗？');
+assert.equal(predictionModelReply.isPrediction, true);
+assert.equal(predictionModelReply.draw.id, 1);
 
-  const defaultResponse = await worker.fetch(new Request('https://book.test/api/ask', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image }),
-  }), { NVIDIA_API_KEY: 'test-key' });
-  assert.equal(defaultResponse.status, 200);
-  assert.equal(upstreamCalls, 1);
-  const defaultDraw = deserializeGeomancyDraw(defaultResponse.headers.get('X-Geomancy-Draw'));
-  assert.ok(defaultDraw);
-  const defaultPayload = JSON.parse(upstreamRequest.init.body);
-  const defaultUserContent = defaultPayload.messages.at(-1).content;
-  assert.equal(defaultUserContent[0].type, 'image_url');
-  const defaultInstruction = defaultUserContent.find(part => part.type === 'text').text;
-  assert.match(defaultInstruction, new RegExp(`第 ${defaultDraw.id} 组`));
+assert.throws(
+  () => parseModelReply('[[GEOMANCY:NONE]]\n没有问题标记', first),
+  error => error.code === 'MODEL_FORMAT_ERROR',
+);
+assert.throws(
+  () => parseModelReply('[[GEOMANCY:NONE]]\n[[QUESTION:UNREADABLE]]\n请重写', first),
+  error => error.code === 'HANDWRITING_UNREADABLE',
+);
 
-  const proxyResponse = await worker.fetch(new Request('https://book.test/api/proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      protocol: 'openai',
-      url: 'https://api.openai.com/v1/chat/completions',
-      apiKey: 'test-key',
-      payload: {
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: ORACLE_SYSTEM_PROMPT },
-          { role: 'user', content: [
-            { type: 'image_url', image_url: { url: image } },
-            { type: 'text', text: HANDWRITING_INSTRUCTION },
-          ]},
-        ],
-      },
-    }),
-  }));
-  assert.equal(proxyResponse.status, 200);
-  assert.equal(upstreamCalls, 2);
-  const proxyDraw = deserializeGeomancyDraw(proxyResponse.headers.get('X-Geomancy-Draw'));
-  assert.ok(proxyDraw);
-  const proxyPayload = JSON.parse(upstreamRequest.init.body);
-  assert.equal(proxyPayload.messages[0].content, ORACLE_SYSTEM_PROMPT);
-  assert.ok(proxyPayload.messages[0].content.startsWith(ORIGINAL_DIARY_SYSTEM_PROMPT));
-  assert.equal(proxyPayload.messages[1].content[0].type, 'image_url');
-  assert.equal(proxyPayload.messages[1].content[1].text, HANDWRITING_INSTRUCTION);
-  const injected = proxyPayload.messages[1].content.at(-1).text;
-  assert.match(injected, new RegExp(`第 ${proxyDraw.id} 组`));
-  assert.match(injected, /GEOMANCY:NONE/);
-} finally {
-  globalThis.fetch = originalFetch;
-}
+const password = await hashPassword('correct horse battery staple');
+assert.equal(await verifyPassword('correct horse battery staple', {
+  password_hash: password.hash, password_salt: password.salt, password_params: password.params,
+}), true);
+assert.equal(await verifyPassword('wrong password', {
+  password_hash: password.hash, password_salt: password.salt, password_params: password.params,
+}), false);
 
-console.log('geomancy: 128 combinations, deterministic draw, Worker injection, response parsing, and safety gates passed');
+assert.deepEqual(CREDIT_PACKAGES.map(item => [item.amount, item.credits]), [
+  [3000, 30], [6000, 60], [10000, 100], [20000, 200], [50000, 500], [100000, 1000],
+]);
+assert.equal(findPackage('credits_100').credits, 100);
+assert.equal(findPackage('made-up'), null);
+
+assert.deepEqual(parseStripeSignature('t=123, v1=first,v1=second'), {
+  timestamp: 123,
+  signatures: ['first', 'second'],
+});
+assert.equal(creditsForRefund({ credits: 30, amount_cny: 3000 }, 0), 0);
+assert.equal(creditsForRefund({ credits: 30, amount_cny: 3000 }, 1), 1);
+assert.equal(creditsForRefund({ credits: 30, amount_cny: 3000 }, 1500), 15);
+assert.equal(creditsForRefund({ credits: 30, amount_cny: 3000 }, 999999), 30);
+
+const webhookSecret = 'whsec_test_only';
+const webhookBody = JSON.stringify({ id: 'evt_test', type: 'checkout.session.completed' });
+const webhookTimestamp = Math.floor(Date.now() / 1000);
+const webhookSignature = await hmacSha256(
+  webhookSecret,
+  `${webhookTimestamp}.${webhookBody}`,
+  'hex',
+);
+await verifyWebhook(new Request('https://example.test/api/webhooks/stripe', {
+  headers: { 'Stripe-Signature': `t=${webhookTimestamp},v1=${webhookSignature}` },
+}), { STRIPE_WEBHOOK_SECRET: webhookSecret }, webhookBody);
+await assert.rejects(
+  verifyWebhook(new Request('https://example.test/api/webhooks/stripe', {
+    headers: { 'Stripe-Signature': `t=${webhookTimestamp},v1=bad-signature` },
+  }), { STRIPE_WEBHOOK_SECRET: webhookSecret }, webhookBody),
+  error => error.code === 'INVALID_WEBHOOK_SIGNATURE',
+);
+
+const indexSource = await readFile(new URL('../src/index.html', import.meta.url), 'utf8');
+const workerSource = await readFile(new URL('../worker/oracle.js', import.meta.url), 'utf8');
+const workerIndexSource = await readFile(new URL('../worker/index.js', import.meta.url), 'utf8');
+const serviceWorkerSource = await readFile(new URL('../src/sw.js', import.meta.url), 'utf8');
+const migrationSource = await readFile(new URL('../migrations/0001_commercial_core.sql', import.meta.url), 'utf8');
+const wenkaiCss = await readFile(new URL('../src/fonts/lxgw-wenkai.css', import.meta.url), 'utf8');
+assert.doesNotMatch(indexSource, /apiKey|API 密钥|\/api\/proxy/);
+assert.match(indexSource, /The Geomancer’s[\s\S]*Book of Answers/);
+assert.match(indexSource, /geomancer-external-draft-v1/);
+assert.match(workerSource, /AI_API_KEY/);
+assert.match(workerIndexSource, /REQUEST_TIMEOUT/);
+assert.doesNotMatch(serviceWorkerSource, /APP_SHELL[\s\S]{0,500}\/audio\//);
+assert.match(serviceWorkerSource, /pathname\.startsWith\('\/api\/'\)/);
+assert.match(serviceWorkerSource, /AUDIO_CACHE/);
+assert.match(serviceWorkerSource, /url\.search \? null : request/);
+assert.match(migrationSource, /CREATE TRIGGER usage_reserve_credit/);
+assert.match(migrationSource, /UNIQUE \(user_id, request_id\)/);
+assert.ok((wenkaiCss.match(/@font-face/g) || []).length >= 90, '霞鹜文楷必须覆盖任意常用中文回答，而不只是首页提示语');
+
+console.log('commercial core: prompts preserved, 128 geomancy draws valid, reply markers, scrypt, packages, PWA and server-only API gates passed');

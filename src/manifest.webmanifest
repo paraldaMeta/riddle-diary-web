@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "The Geomancer’s Book of Answers",
-  "short_name": "Geomancer’s Answers",
+  "short_name": "地占答案之书",
   "description": "写上你的问题，地占答案之书将会为你解答。",
   "lang": "zh-CN",
   "dir": "ltr",
