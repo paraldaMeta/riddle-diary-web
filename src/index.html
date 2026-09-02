@@ -733,6 +733,18 @@
   if (!STANDALONE_APP && matchMedia('(prefers-reduced-motion: no-preference)').matches) initThree();
 
   // ---- Drawing -------------------------------------------------------------
+  function drawStrokeDot(target, point, color, baseAlpha, offsetX, offsetY) {
+    var pressure = Math.max(point.p, MIN_PRESSURE);
+    var diameter = LINE_WIDTH * (0.5 + pressure * 1.5);
+    target.save();
+    target.fillStyle = color;
+    target.globalAlpha = baseAlpha * (0.82 + pressure * 0.18);
+    target.beginPath();
+    target.arc(point.x - (offsetX || 0), point.y - (offsetY || 0), Math.max(1, diameter / 2), 0, Math.PI * 2);
+    target.fill();
+    target.restore();
+  }
+
   function startStroke(pt) {
     if (replyActive || waiting) return;
     hideGuide();
@@ -762,6 +774,20 @@
 
   function endStroke() {
     if (!drawing) return;
+    if (currentStroke && currentStroke.length === 1) {
+      drawStrokeDot(ctx, currentStroke[0], inkColor(), 1, 0, 0);
+      markDirty();
+    } else if (currentStroke && currentStroke.length > 1) {
+      var endpoint = currentStroke[currentStroke.length - 1];
+      var pressure = Math.max(endpoint.p, MIN_PRESSURE);
+      ctx.strokeStyle = inkColor();
+      ctx.globalAlpha = 0.82 + pressure * 0.18;
+      ctx.lineWidth = LINE_WIDTH * (0.5 + pressure * 1.5);
+      ctx.lineTo(endpoint.x, endpoint.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      markDirty();
+    }
     drawing = false; currentStroke = null;
     scheduleIdle();
   }
@@ -842,6 +868,10 @@
     var fade = ctx.globalAlpha;   // respect caller's fade alpha (set by fadeOut)
     for (var si = 0; si < strokes.length; si++) {
       var stroke = strokes[si];
+      if (stroke.length === 1) {
+        drawStrokeDot(ctx, stroke[0], ic, fade, 0, 0);
+        continue;
+      }
       if (stroke.length < 2) continue;
       ctx.beginPath();
       ctx.moveTo(stroke[0].x, stroke[0].y);
@@ -857,16 +887,40 @@
         ctx.beginPath();
         ctx.moveTo(midX, midY);
       }
+      var endpoint = stroke[stroke.length - 1];
+      var endPressure = Math.max(endpoint.p, MIN_PRESSURE);
+      ctx.lineWidth = LINE_WIDTH * (0.5 + endPressure * 1.5);
+      ctx.globalAlpha = fade * (0.82 + endPressure * 0.18);
+      ctx.lineTo(endpoint.x, endpoint.y);
+      ctx.stroke();
     }
     ctx.globalAlpha = fade;
   }
 
   function exportPNG() {
-    var w = canvasWidth, h = canvasHeight;
+    var minX = canvasWidth, minY = canvasHeight, maxX = 0, maxY = 0;
+    strokes.forEach(function(stroke) {
+      stroke.forEach(function(point) {
+        minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+      });
+    });
+
+    // Send the handwriting, not a mostly empty full-screen page. A generous
+    // border keeps dots and line caps intact; small writing is enlarged up to 2×.
+    var span = Math.max(maxX - minX, maxY - minY);
+    var padding = Math.max(32, Math.min(72, span * 0.12));
+    var left = Math.max(0, Math.floor(minX - padding));
+    var top = Math.max(0, Math.floor(minY - padding));
+    var right = Math.min(canvasWidth, Math.ceil(maxX + padding));
+    var bottom = Math.min(canvasHeight, Math.ceil(maxY + padding));
+    var w = Math.max(1, right - left), h = Math.max(1, bottom - top);
+    var exportScale = Math.max(1, Math.min(2, 768 / Math.max(w, h)));
     var tmp = document.createElement('canvas');
-    tmp.width = Math.max(1, Math.round(w));
-    tmp.height = Math.max(1, Math.round(h));
+    tmp.width = Math.max(1, Math.round(w * exportScale));
+    tmp.height = Math.max(1, Math.round(h * exportScale));
     var t = tmp.getContext('2d');
+    t.setTransform(tmp.width / w, 0, 0, tmp.height / h, 0, 0);
     // Use CSS bg color for export
     var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f5f0e6';
     t.fillStyle = bg;
@@ -874,22 +928,32 @@
     var ic = inkColor();
     for (var si = 0; si < strokes.length; si++) {
       var stroke = strokes[si];
+      if (stroke.length === 1) {
+        drawStrokeDot(t, stroke[0], ic, 1, left, top);
+        continue;
+      }
       if (stroke.length < 2) continue;
       t.beginPath();
-      t.moveTo(stroke[0].x, stroke[0].y);
+      t.moveTo(stroke[0].x - left, stroke[0].y - top);
       for (var i = 1; i < stroke.length; i++) {
         var p = stroke[i], prev = stroke[i-1];
-        var midX = (prev.x + p.x)/2, midY = (prev.y + p.y)/2;
+        var midX = (prev.x + p.x)/2 - left, midY = (prev.y + p.y)/2 - top;
         var press = Math.max(p.p, MIN_PRESSURE);
         t.lineWidth = LINE_WIDTH * (0.5 + press * 1.5);
         t.strokeStyle = ic;
         t.globalAlpha = 0.82 + press * 0.18;
         t.lineCap = 'round'; t.lineJoin = 'round';
-        t.quadraticCurveTo(prev.x, prev.y, midX, midY);
+        t.quadraticCurveTo(prev.x - left, prev.y - top, midX, midY);
         t.stroke();
         t.beginPath();
         t.moveTo(midX, midY);
       }
+      var endpoint = stroke[stroke.length - 1];
+      var endPressure = Math.max(endpoint.p, MIN_PRESSURE);
+      t.lineWidth = LINE_WIDTH * (0.5 + endPressure * 1.5);
+      t.globalAlpha = 0.82 + endPressure * 0.18;
+      t.lineTo(endpoint.x - left, endpoint.y - top);
+      t.stroke();
     }
     t.globalAlpha = 1;
     return tmp.toDataURL('image/png');
@@ -970,8 +1034,8 @@
         messages: [
           { role: 'system', content: DEFAULT_PROMPT },
           { role: 'user', content: [
-            { type: 'text', text: instruction },
             { type: 'image_url', image_url: { url: pngDataUrl } },
+            { type: 'text', text: instruction },
           ]},
         ],
         max_tokens: 1000,

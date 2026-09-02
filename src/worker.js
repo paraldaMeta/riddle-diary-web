@@ -74,8 +74,8 @@ async function handleDefaultAsk(request, env) {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: [
-        { type: 'text', text: instruction },
         { type: 'image_url', image_url: { url: image } },
+        { type: 'text', text: instruction },
       ]},
     ],
     max_tokens: 1000,

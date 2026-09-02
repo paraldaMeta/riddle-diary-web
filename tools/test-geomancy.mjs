@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import geomancyLibrary from '../src/geomancy-library.json' with { type: 'json' };
 import worker from '../src/worker.js';
 import {
   ORACLE_SYSTEM_PROMPT,
+  ORIGINAL_DIARY_SYSTEM_PROMPT,
+  HANDWRITING_INSTRUCTION,
   appendGeomancyInstruction,
   buildGeomancyInstruction,
   combineGeomancyPatterns,
@@ -96,7 +99,17 @@ assert.equal(unmarked.text, '没有机器标记也不能误显示卦象。');
 
 assert.match(ORACLE_SYSTEM_PROMPT, /文化娱乐/);
 assert.match(ORACLE_SYSTEM_PROMPT, /不得照搬为确定的死亡时间/);
-assert.doesNotMatch(ORACLE_SYSTEM_PROMPT, /汤姆·马沃罗·里德尔|伏地魔/);
+assert.match(ORIGINAL_DIARY_SYSTEM_PROMPT, /十六岁汤姆·马沃罗·里德尔留下的记忆/);
+assert.match(ORIGINAL_DIARY_SYSTEM_PROMPT, /提到霍格沃茨、斯莱特林、邓布利多/);
+assert.equal(
+  createHash('sha256').update(ORIGINAL_DIARY_SYSTEM_PROMPT).digest('hex'),
+  'f2dfb8a0a3fccf4662cd306df2c79674c0a1bb72e2e6e7b2ccdbbba99cb1d001',
+  '原始日记提示词必须保持与地占功能加入前完全一致',
+);
+assert.match(ORACLE_SYSTEM_PROMPT, /不替代或改写上述身份、记忆/);
+assert.match(ORACLE_SYSTEM_PROMPT, /非预测问题，必须继续完全按照原来的魔法日记人格回应/);
+assert.match(HANDWRITING_INSTRUCTION, /单个词、简短问候、英文或中英混合都是有效输入/);
+assert.doesNotMatch(HANDWRITING_INSTRUCTION, /不要复述无法确认的笔画/);
 
 const originalFetch = globalThis.fetch;
 let upstreamRequest;
@@ -134,7 +147,9 @@ try {
   const defaultDraw = deserializeGeomancyDraw(defaultResponse.headers.get('X-Geomancy-Draw'));
   assert.ok(defaultDraw);
   const defaultPayload = JSON.parse(upstreamRequest.init.body);
-  const defaultInstruction = defaultPayload.messages.at(-1).content.find(part => part.type === 'text').text;
+  const defaultUserContent = defaultPayload.messages.at(-1).content;
+  assert.equal(defaultUserContent[0].type, 'image_url');
+  const defaultInstruction = defaultUserContent.find(part => part.type === 'text').text;
   assert.match(defaultInstruction, new RegExp(`第 ${defaultDraw.id} 组`));
 
   const proxyResponse = await worker.fetch(new Request('https://book.test/api/proxy', {
@@ -146,7 +161,13 @@ try {
       apiKey: 'test-key',
       payload: {
         model: 'gpt-4o',
-        messages: [{ role: 'user', content: [{ type: 'text', text: '辨认图片' }] }],
+        messages: [
+          { role: 'system', content: ORACLE_SYSTEM_PROMPT },
+          { role: 'user', content: [
+            { type: 'image_url', image_url: { url: image } },
+            { type: 'text', text: HANDWRITING_INSTRUCTION },
+          ]},
+        ],
       },
     }),
   }));
@@ -155,7 +176,11 @@ try {
   const proxyDraw = deserializeGeomancyDraw(proxyResponse.headers.get('X-Geomancy-Draw'));
   assert.ok(proxyDraw);
   const proxyPayload = JSON.parse(upstreamRequest.init.body);
-  const injected = proxyPayload.messages[0].content.at(-1).text;
+  assert.equal(proxyPayload.messages[0].content, ORACLE_SYSTEM_PROMPT);
+  assert.ok(proxyPayload.messages[0].content.startsWith(ORIGINAL_DIARY_SYSTEM_PROMPT));
+  assert.equal(proxyPayload.messages[1].content[0].type, 'image_url');
+  assert.equal(proxyPayload.messages[1].content[1].text, HANDWRITING_INSTRUCTION);
+  const injected = proxyPayload.messages[1].content.at(-1).text;
   assert.match(injected, new RegExp(`第 ${proxyDraw.id} 组`));
   assert.match(injected, /GEOMANCY:NONE/);
 } finally {
