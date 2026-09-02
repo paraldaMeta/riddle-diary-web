@@ -17,6 +17,13 @@
     "AI_MODEL": "gpt-5.6-sol",
     "ENABLE_PHONE_AUTH": "false"
   },
+  "routes": [
+    {
+      "pattern": "gsdiary.com",
+      "custom_domain": true
+    }
+  ],
+  "workers_dev": true,
   "d1_databases": [
     {
       "binding": "DB",
