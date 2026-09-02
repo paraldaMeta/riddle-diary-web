@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "The Diary",
-  "short_name": "The Diary",
-  "description": "一本会辨认手写内容并回应你的魔法日记。",
+  "name": "The Book of Geomancy Answers",
+  "short_name": "Geomancy Answers",
+  "description": "写上你的问题，地占答案之书将会为你解答。",
   "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "/",

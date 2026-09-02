@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="The Diary">
+  <meta name="apple-mobile-web-app-title" content="The Book of Geomancy Answers">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#050403">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/icons/icon-180.png" sizes="180x180">
-  <title>The Diary</title>
+  <title>The Book of Geomancy Answers</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     @font-face {
       font-family: 'Dancing Script';
       src: url('https://fonts.gstatic.com/s/dancingscript/v29/If2RXTr6YS-zF4S-kcSWSVi_szLgiuE.woff2') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'LXGW WenKai Hint';
+      src: url('/fonts/lxgw-wenkai-hint.woff2') format('woff2');
       font-weight: 400;
       font-style: normal;
       font-display: swap;
@@ -163,14 +170,26 @@
     #guide.hidden { opacity: 0; }
     #guide .title {
       font-family: 'Dancing Script', Georgia, serif;
-      font-size: clamp(2.4rem, 9vw, 4.2rem);
+      font-size: clamp(2rem, 7vw, 4rem);
       font-style: italic;
+      line-height: 1.05;
       letter-spacing: 0.02em;
+      max-width: min(900px, 92vw);
+      text-wrap: balance;
       color: var(--reply-ink);
       opacity: 0.92;
       text-shadow: var(--guide-shadow);
     }
-    #guide .hint { font-size: 0.95rem; opacity: var(--guide-opacity); max-width: 34ch; line-height: 1.55; }
+    #guide .hint {
+      font-family: 'LXGW WenKai Hint', 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', serif;
+      font-size: clamp(1rem, 2.4vw, 1.2rem);
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      opacity: var(--guide-opacity);
+      max-width: min(36em, 88vw);
+      line-height: 1.7;
+      text-wrap: balance;
+    }
     #guide .gestures {
       display: flex; flex-wrap: wrap; justify-content: center;
       gap: 0.7rem 1.2rem; font-size: 0.78rem;
@@ -367,8 +386,8 @@
   <button id="gear" type="button" aria-label="打开设置" title="设置">⚙</button>
 
   <div id="guide">
-    <div class="title">The Diary</div>
-    <div class="hint">写下你的问题，然后停笔。日记会回答你。</div>
+    <div class="title">The Book of Geomancy Answers</div>
+    <div class="hint">写上你的问题，地占答案之书将会为你解答。</div>
     <div class="gestures">
       <span>✍️ 写完后稍候</span>
       <span>🔄 翻转手写笔可擦除</span>
