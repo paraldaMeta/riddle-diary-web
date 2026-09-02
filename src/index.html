@@ -187,14 +187,6 @@
       line-height: 1.7;
       text-wrap: balance;
     }
-    #guide .gestures {
-      display: flex; flex-wrap: wrap; justify-content: center;
-      gap: 0.7rem 1.2rem; font-size: 0.78rem;
-      opacity: calc(var(--guide-opacity) * 0.82); margin-top: 0.2rem;
-      max-width: min(560px, 92vw);
-    }
-    #guide .gestures span { display: flex; align-items: center; gap: 0.4rem; }
-
     /* ---- Status bar ---- */
     #status {
       position: fixed;
@@ -222,24 +214,34 @@
       40% { opacity: 1; }
     }
 
-    /* ---- Install affordance (shown only when the browser offers PWA install) ---- */
+    /* ---- Install affordance ------------------------------------------------ */
     #install-app {
-      position: fixed;
-      top: 0.75rem; left: 0.75rem;
-      z-index: 30;
-      padding: 0.45rem 0.72rem;
-      border: 1px solid var(--border);
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
+      min-height: 44px;
+      margin-top: 0.15rem;
+      padding: 0.68rem 1.35rem;
+      border: 1px solid color-mix(in srgb, var(--reply-ink) 30%, transparent);
       border-radius: 999px;
-      background: color-mix(in srgb, var(--bg) 82%, transparent);
-      color: var(--muted);
-      font: 0.75rem Georgia, serif;
+      background: color-mix(in srgb, var(--bg) 72%, transparent);
+      color: var(--reply-ink);
+      font: 400 0.92rem/1 'LXGW WenKai Lite', 'Kaiti SC', serif;
+      letter-spacing: 0.08em;
       cursor: pointer;
-      opacity: 0.72;
+      opacity: 0.8;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
+      transition: opacity 180ms ease, border-color 180ms ease, transform 180ms ease;
     }
-    #install-app:hover { opacity: 1; }
+    #install-app:hover, #install-app:focus-visible {
+      opacity: 1;
+      border-color: color-mix(in srgb, var(--reply-ink) 58%, transparent);
+      outline: none;
+      transform: translateY(-1px);
+    }
     #install-app[hidden] { display: none; }
+    #guide.hidden #install-app { pointer-events: none; }
 
   </style>
 </head>
@@ -248,7 +250,6 @@
   <div id="candle"></div>
   <div id="watermark">地占</div>
 
-  <button id="install-app" type="button" hidden>安装</button>
   <button id="sound-button" type="button" aria-label="声音">音</button>
   <button id="account-button" type="button" aria-label="打开帐号与声音">入</button>
 
@@ -258,12 +259,7 @@
       <span aria-hidden="true">Book of Answers</span>
     </div>
     <div class="hint">写上你的问题，地占答案之书将会为你解答。</div>
-    <div class="gestures">
-      <span>✍️ 写完后稍候</span>
-      <span>🔄 翻转手写笔可擦除</span>
-      <span>❓ 画一个问号查看提示</span>
-      <span>帐 登录后赠送三次</span>
-    </div>
+    <button id="install-app" type="button">安装到设备</button>
   </div>
 
   <div id="status"></div>
@@ -900,18 +896,28 @@
 
   // ---- PWA installation -----------------------------------------------------
   var pendingInstallPrompt = null;
+  if (STANDALONE_APP) installAppEl.hidden = true;
   window.addEventListener('beforeinstallprompt', function(event) {
     event.preventDefault();
     pendingInstallPrompt = event;
-    installAppEl.hidden = false;
+    if (!STANDALONE_APP) installAppEl.hidden = false;
   });
 
   installAppEl.addEventListener('click', async function() {
-    if (!pendingInstallPrompt) return;
-    await pendingInstallPrompt.prompt();
-    await pendingInstallPrompt.userChoice;
-    pendingInstallPrompt = null;
-    installAppEl.hidden = true;
+    window.dispatchEvent(new CustomEvent('geomancer:install-start'));
+    if (pendingInstallPrompt) {
+      await pendingInstallPrompt.prompt();
+      var choice = await pendingInstallPrompt.userChoice;
+      pendingInstallPrompt = null;
+      if (choice && choice.outcome === 'accepted') installAppEl.hidden = true;
+      return;
+    }
+    var appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var help = appleMobile
+      ? '请点 Safari 的“分享”，再选择“添加到主屏幕”。'
+      : '请打开浏览器菜单，选择“安装应用”或“添加到主屏幕”。';
+    if (portal) portal.toast(help); else showStatus(help);
   });
 
   window.addEventListener('appinstalled', function() {

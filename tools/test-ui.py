@@ -27,6 +27,8 @@ def check_view(browser, name, viewport, standalone=False):
 
     title_lines = page.locator("#guide .title span").all_text_contents()
     assert title_lines == ["The Geomancer’s", "Book of Answers"]
+    assert page.locator("#guide .gestures").count() == 0
+    assert page.locator("#install-app").is_hidden() if standalone else page.locator("#install-app").is_visible()
     assert page.locator("text=API 密钥").count() == 0
     canvas_box = page.locator("#paper").bounding_box()
     assert abs(canvas_box["width"] - viewport["width"]) < 1

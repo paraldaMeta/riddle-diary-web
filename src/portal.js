@@ -661,6 +661,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   accountButton.addEventListener('click', () => open('overview'));
   soundButton.addEventListener('click', () => music.toggleMuted());
   music.subscribe(updateButtons);
+  window.addEventListener('geomancer:install-start', () => { hasOpened = true; });
 
   async function initialize() {
     try { await refresh(); } catch {}
@@ -668,7 +669,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     if (!user) {
       setTimeout(() => {
         if (!user && !hasOpened && !root.classList.contains('portal-open')) open('overview');
-      }, 1100);
+      }, 2600);
     }
   }
 

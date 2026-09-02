@@ -18,6 +18,7 @@
 - 六档永久次数包：¥30/60/100/200/500/1000，严格 ¥1/次
 - Stripe Hosted Checkout；由 Dashboard 动态提供银行卡、Apple Pay、支付宝与微信支付
 - 三首 Kevin MacLeod 的 CC BY 4.0 音乐顺序循环、低音量播放、静音记忆与按需离线缓存
+- 首页原操作提示改为“安装到设备”按钮；支持原生安装提示，并为 iOS 提供添加到主屏幕指引
 - 可安装 PWA；帐号、支付、历史和 AI 响应永不由 Service Worker 缓存
 
 ## 架构
