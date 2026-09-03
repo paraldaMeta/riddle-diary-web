@@ -174,6 +174,26 @@ def check_short_auth(browser):
     context.close()
 
 
+def check_sound_returns_to_sidebar(browser):
+    for viewport in ({"width": 390, "height": 844}, {"width": 1440, "height": 900}):
+        context = browser.new_context(viewport=viewport, locale="zh-CN")
+        page = context.new_page()
+        page.goto(BASE, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_selector("#portal-root.portal-open.portal-auth-scene", timeout=7000)
+        page.locator('.portal-nav [data-section="sound"]').click()
+        page.wait_for_selector("#portal-root.portal-open:not(.portal-auth-scene)", timeout=3000)
+        page.wait_for_selector("#portal-track-title", timeout=3000)
+        assert page.locator("#guide").evaluate("element => !element.classList.contains('hidden')")
+        drawer_box = page.locator(".portal-drawer").bounding_box()
+        if viewport["width"] <= 640:
+            assert drawer_box["y"] > 0
+            assert drawer_box["height"] < viewport["height"]
+        else:
+            assert drawer_box["x"] >= viewport["width"] - 521
+            assert drawer_box["width"] <= 520
+        context.close()
+
+
 def check_auth_network_error(browser):
     context = browser.new_context(viewport={"width": 900, "height": 700}, locale="zh-CN")
     page = context.new_page()
@@ -362,6 +382,7 @@ with sync_playwright() as playwright:
     check_view(browser, "ios-pwa-en", {"width": 390, "height": 844}, "en-US", standalone=True)
     check_view(browser, "ios-pwa-zh", {"width": 390, "height": 844}, "zh-CN", standalone=True)
     check_short_auth(browser)
+    check_sound_returns_to_sidebar(browser)
     check_auth_network_error(browser)
     check_recovery(browser)
     check_origin_story(browser)

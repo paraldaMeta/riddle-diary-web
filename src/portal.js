@@ -163,9 +163,11 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
 
   function render() {
     if (!user && !['overview', 'sound', 'about'].includes(active)) active = 'overview';
+    const wasImmersiveAuth = root.classList.contains('portal-auth-scene');
     const immersiveAuth = !user && active === 'overview';
     root.classList.toggle('portal-auth-scene', immersiveAuth);
     if (immersiveAuth) window.dispatchEvent(new CustomEvent('geomancer:auth-open'));
+    else if (wasImmersiveAuth) window.dispatchEvent(new CustomEvent('geomancer:auth-close'));
     renderNav();
     if (active === 'overview') user ? renderOverview() : renderAuth();
     else if (active === 'origin') renderOriginStory();
