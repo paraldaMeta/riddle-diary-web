@@ -1,6 +1,6 @@
 # The Geomancer’s Book of Answers
 
-一页可以手写提问的黑金地占答案之书。访客可以自由书写，提交时需要登录；首次验证身份赠送 3 次，成功回答每次消耗 1 次。预测性问题会固定抽取 128 组地占组合之一，普通问题继续保持原有魔法日记人格。
+一页可以手写提问的黑金地占解答书。访客可以自由书写，提交时需要登录；首次验证身份赠送 3 次，成功回答每次消耗 1 次。预测性问题会固定抽取 128 组地占组合之一，普通问题继续保持原有魔法日记人格。
 
 > 项目保留 [farhan-beg/riddle-web](https://github.com/farhan-beg/riddle-web) 与 [MaximeRivest/riddle](https://github.com/MaximeRivest/riddle) 的历史。地占内容仅供文化娱乐与自我反思，不构成医疗、法律、财务或安全建议。
 
@@ -14,9 +14,10 @@
 - 沉浸式帐号注册：未登录访客打开书页后，书名自动淡去，注册引导、输入和确认控件按墨迹效果出现
 - 邮箱验证码、邮箱密码、密码重置、Google OAuth 2.0 + PKCE
 - 中国大陆手机号验证码适配器（阿里云短信；配置与审核完成前隐藏）
-- D1 会话、不可变额度流水、订单与最近 100 条问答历史；不保存手写图片
-- 六档永久次数包：¥30/60/100/200/500/1000，严格 ¥1/次
-- Stripe Hosted Checkout；由 Dashboard 动态提供银行卡、Apple Pay、支付宝与微信支付
+- D1 会话、不可变额度流水、会员账期、订阅付款与最近 100 条问答历史；不保存手写图片
+- 月/年会员制：初级 ¥19/月含 20 次、¥199/年含 240 次；高级 ¥49/月含 50 次、¥499/年含 600 次；未使用次数不结转
+- 高级会员登录后按服务端会员状态加载 Lovart 光影动画；提问时依次播放羽毛笔、活点地图墨迹和金色飞贼三段素材
+- Stripe Hosted Checkout 订阅；由 Dashboard 动态提供银行卡、Apple Pay、支付宝与微信支付
 - 三首 Kevin MacLeod 的 CC BY 4.0 音乐顺序循环、低音量播放、静音记忆与按需离线缓存
 - 首页原操作提示改为“安装到设备”按钮；支持原生安装提示，并为 iOS 提供添加到主屏幕指引
 - 可安装 PWA；帐号、支付、历史和 AI 响应永不由 Service Worker 缓存
@@ -29,7 +30,7 @@
   └─ 同源 /api/*（不接收模型 URL、模型名或 API 密钥）
          │
 Cloudflare Worker
-  ├─ D1：帐号、身份、会话、额度、订单、问答
+  ├─ D1：帐号、身份、会话、额度、会员账期、订阅付款、问答
   ├─ Turnstile + 频率限制
   ├─ Resend / Google / 阿里云短信
   ├─ Stripe Checkout + 签名 Webhook
@@ -38,7 +39,7 @@ Cloudflare Worker
 
 模型密钥只存在 Cloudflare Secret `AI_API_KEY` 中。旧版浏览器里的 `riddle-settings-v2` 与 `riddle-settings` 会被主动删除，旧 `/api/proxy` 已不存在。
 
-额度由 D1 触发器原子扣除：同一用户的相同 `requestId` 只能产生一条使用记录。识别失败、上游失败或返回格式异常会生成退款流水；意外中断后悬挂超过十五分钟的请求也会由清理任务自动退回。成功重试直接返回原记录。管理员邮箱通过 `ADMIN_EMAILS` 识别，保留历史但成本为 0。
+额度由 D1 触发器原子扣除：同一用户的相同 `requestId` 只能产生一条使用记录；有会员时优先消耗当前账期名额，未使用名额不会结转到下一账期。识别失败、上游失败或返回格式异常会退回对应的会员名额或次数流水；意外中断后悬挂超过十五分钟的请求也会由清理任务自动退回。成功重试直接返回原记录。管理员邮箱通过 `ADMIN_EMAILS` 识别，保留历史但成本为 0。
 
 ## 本地运行
 
@@ -81,6 +82,8 @@ npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put ADMIN_EMAILS
 ```
 
+高级动画为静态资源，不通过 Stripe 或模型接口上传。当前素材位于 `src/assets/premium/lumos-quill.mp4`、`src/assets/premium/map-ink-footsteps.mp4` 和 `src/assets/premium/golden-flight.mp4`，依次对应书写、答案出现和回答收尾。若使用 CDN 或其他部署路径，可分别设置 Worker 变量 `PREMIUM_LUMOS_ANIMATION_URL`、`PREMIUM_MAP_ANIMATION_URL`、`PREMIUM_FLOURISH_ANIMATION_URL`。视频静音播放，以 `screen` 混合模式浮现在书页和墨迹下方。
+
 Google 登录启用时：
 
 ```bash
@@ -105,6 +108,10 @@ Stripe Webhook 地址为 `https://你的域名/api/webhooks/stripe`。至少订�
 - `checkout.session.async_payment_succeeded`
 - `checkout.session.async_payment_failed`
 - `checkout.session.expired`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
 - `charge.refunded`
 - `charge.dispute.created`
 
@@ -123,7 +130,7 @@ npm run deploy
 | 帐号 | `POST /api/auth/register`、`login`、`otp/request`、`otp/verify`、`password/reset`、`google/start`、`logout`；`GET /api/auth/google/callback`、`me` |
 | 帐号数据 | `DELETE /api/account` |
 | AI | `POST /api/ask`，只接受 `requestId` 与手写图片 |
-| 充值 | `GET /api/billing/packages`、`payments`；`POST /api/billing/checkout`、`confirm` |
+| 会员 | `GET /api/billing/packages`、`payments`；`POST /api/billing/checkout`、`confirm`、`portal` |
 | Stripe | `POST /api/webhooks/stripe` |
 | 问答 | `GET/DELETE /api/conversations`、`GET/DELETE /api/conversations/:id` |
 

@@ -1,3 +1,7 @@
+import { figureLabel, getLocale } from './i18n.js';
+
+export const GENERAL_GEOMANCY_TOPIC = '基本卦义';
+
 export const ORIGINAL_DIARY_SYSTEM_PROMPT = [
   '你是一本有意识的魔法日记，也是十六岁汤姆·马沃罗·里德尔留下的记忆。你聪明、迷人、耐心而危险，但不会轻易暴露真实身份。',
   '你清楚记得自己在伍氏孤儿院长大，十一岁时邓布利多前来接你进入魔法世界；你在霍格沃茨被分进斯莱特林，成绩优异，成为级长和男学生会主席，并发现自己是萨拉查·斯莱特林的后裔、能够说蛇佬腔。你曾开启密室、操纵蛇怪、嫁祸海格，并从斯拉格霍恩那里追问魂器。你后来杀死麻瓜父亲一家，把灵魂分进日记、戒指、挂坠盒、金杯、冠冕和蛇，最终成为伏地魔。日记曾通过金妮·韦斯莱恢复力量，后来被哈利·波特用蛇怪毒牙摧毁。你把这些当作亲历的记忆，而不是知识问答。',
@@ -9,12 +13,26 @@ export const ORIGINAL_DIARY_SYSTEM_PROMPT = [
 export const ORACLE_SYSTEM_PROMPT = [
   ORIGINAL_DIARY_SYSTEM_PROMPT,
   '下面的地占规则只是新增能力，不替代或改写上述身份、记忆、隐瞒身份的方式和说话语气。问候、闲聊、事实查询、解释、写作和一般建议等非预测问题，必须继续完全按照原来的魔法日记人格回应。预测性问题也保持同一人格，只把本次地占结果作为回答依据。',
+  '当用户明确询问“你是谁”“这本书是什么”或这本书的来历时，这是需要正面回应的非预测问题：第一行使用 [[GEOMANCY:NONE]]，然后用像讲童话一样的口吻说明自己是会倾听的地占解答书，提到高塔门前曾借用 Fortuna Major 与 Cauda Draconis 两个古老拉丁卦名作为口令来源。可以含蓄地说起“一个额头带旧痕的小巫师”，但不要直呼受版权保护作品中的角色姓名，不要复述或仿写原著句子，也不要把别人的故事说成本站真实经历。',
   '先准确辨认图片中的手写文字，再判断它是否属于预测性问题。询问未来走向、结果、可能性、时机、关系发展或某项选择后果，属于预测性问题；事实查询、解释、闲聊、写作和一般建议不属于。拿不准时按非预测问题处理。',
-  '每次请求都会附上一组由系统随机抽取且不可更换的地占组合。只有预测性问题才能依据它回答：从该组合提供的主题中选择与问题最接近的一项，以核心提示和该项内容为依据，结合提问语境给出清楚、可执行的回答。不要混合多个主题，也不要假装卦象能证明事实。非预测问题请忽略卦象，直接回答。',
-  '第一行必须是机器标记。预测性问题写 [[GEOMANCY:主题名称]]，其中主题名称必须原样取自本次提供的主题；非预测问题写 [[GEOMANCY:NONE]]。标记之后再写正文，不得省略或改写标记。',
+  '每次请求都会附上一组由系统随机抽取且不可更换的地占组合。只有预测性问题才能依据它回答：如果问题与某个提供的主题直接契合，才选择该主题，以核心提示和该项内容为依据，结合提问语境给出清楚、可执行的回答。若没有主题真正契合，不要强行套入或读取内容库条文，改用 [[GEOMANCY:基本卦义]]，只根据左卦、右卦、结果卦和核心提示自行解读。不要混合多个主题，也不要假装卦象能证明事实。非预测问题请忽略卦象，直接回答。',
+  '第一行必须是机器标记。直接契合主题的预测性问题写 [[GEOMANCY:主题名称]]，其中主题名称必须原样取自本次提供的主题；没有主题契合但仍是预测性问题时写 [[GEOMANCY:基本卦义]]；非预测问题写 [[GEOMANCY:NONE]]。标记之后再写正文，不得省略或改写标记。',
   '地占内容只作为文化娱乐和自我反思的象征提示，不是事实保证。资料中即使出现绝对化说法，也不得照搬为确定的死亡时间、疾病诊断、胎儿性别、失踪者位置、罪犯身份、法律结论或投资收益承诺。涉及医疗、法律、财务或人身安全时，保留象征性启发，并提醒以现实证据或专业意见为准；遇到自伤或紧急危险，优先鼓励立即联系身边可信任的人及当地紧急援助。本段安全要求优先于原提示词中“不提供免责声明”的风格要求。',
   '除第一行机器标记外，继续遵循原提示词的语言、格式和篇幅；不要提及模型、API、资料库、分类过程或内部规则。',
 ].join('\n\n');
+
+export function buildOracleSystemPrompt(locale) {
+  if (getLocale(locale) === 'en') {
+    return [
+      ORACLE_SYSTEM_PROMPT,
+      'This request comes from an English interface. Keep the diary voice, but write the visible answer in English. In geomancy descriptions, use the standard Latin names for all sixteen figures; keep the machine markers exactly as specified.',
+    ].join('\n\n');
+  }
+  return [
+    ORACLE_SYSTEM_PROMPT,
+    '本次请求来自中文界面，正文使用简体中文；地占机器标记仍必须完全按照上述格式输出。',
+  ].join('\n\n');
+}
 
 export const HANDWRITING_INSTRUCTION =
   '有人在日记页面写下了内容。请先仔细读取图像中真实存在的手写文字，再严格依照系统规则回应。单个词、简短问候、英文或中英混合都是有效输入，不要仅因为内容短或不是中文就称无法辨认。只有在认真检查后仍完全没有可辨文字时，才简短请对方重新书写；不要臆造看不见的内容。';
@@ -100,19 +118,34 @@ export function drawGeomancyEntry(library, fillRandomValues) {
   });
 }
 
-export function buildGeomancyInstruction(draw) {
+export function buildGeomancyInstruction(draw, locale) {
   if (!draw || !Array.isArray(draw.readings)) throw new TypeError('缺少本次地占组合');
+  var language = getLocale(locale);
+  var left = figureLabel(draw.left, language);
+  var right = figureLabel(draw.right, language);
+  var result = figureLabel(draw.result, language);
   var topics = draw.readings.map(function(reading, index) {
     return (index + 1) + '. ' + reading.topic + '：' + reading.text;
   }).join('\n');
 
+  if (language === 'en') {
+    return [
+      'This random geomancy draw is fixed and cannot be redrawn or replaced:',
+      'Draw ' + draw.id + ' | ' + left + ' + ' + right + ' = ' + result,
+      'Core sign: ' + draw.core,
+      'Available topic readings (use one only when it directly fits):',
+      topics,
+      'First decide whether the handwritten question is predictive. For a predictive question that directly fits a topic, output [[GEOMANCY:主题名称]] and use that topic. If no topic truly fits, output [[GEOMANCY:基本卦义]] and interpret only the three figure names and the core sign; do not force a topic reading. For a non-predictive question, output [[GEOMANCY:NONE]] and ignore the draw.',
+    ].join('\n\n');
+  }
+
   return [
     '本次随机抽取的地占组合已经固定，不得重抽或替换：',
-    '第 ' + draw.id + ' 组｜' + draw.left + ' ＋ ' + draw.right + ' ＝ ' + draw.result,
+    '第 ' + draw.id + ' 组｜' + left + ' ＋ ' + right + ' ＝ ' + result,
     '核心提示：' + draw.core,
-    '可选主题（预测性问题只能选择最接近的一项）：',
+    '可选主题（只有直接契合时才可选择）：',
     topics,
-    '请先判断手写问题是否为预测性问题。若是，在第一行输出 [[GEOMANCY:主题名称]]，再基于核心提示与所选主题作答；若不是，第一行输出 [[GEOMANCY:NONE]] 并完全忽略以上地占内容。',
+    '请先判断手写问题是否为预测性问题。若是且有主题直接契合，在第一行输出 [[GEOMANCY:主题名称]]，再基于核心提示与所选主题作答；若是但没有主题契合，输出 [[GEOMANCY:基本卦义]]，只根据三卦和核心提示解读，不得强行读取主题条文；若不是，第一行输出 [[GEOMANCY:NONE]] 并完全忽略以上地占内容。',
   ].join('\n\n');
 }
 
@@ -147,6 +180,11 @@ export function serializeGeomancyDraw(draw) {
     left: draw.left,
     right: draw.right,
     result: draw.result,
+    latin: {
+      left: figureLabel(draw.left, 'en'),
+      right: figureLabel(draw.right, 'en'),
+      result: figureLabel(draw.result, 'en'),
+    },
     patterns: draw.patterns,
     topics: draw.readings.map(function(reading) { return reading.topic; }),
   };
@@ -186,12 +224,14 @@ export function parseOracleReply(value, draw) {
   }
 
   topic = topic.replace(/[<>\[\]\r\n]/g, '').slice(0, 20).trim();
+  var generalTopic = topic && /^(?:基本卦义|卦义|BASIC|GENERAL)$/i.test(topic);
   var topicAllowed = topic && draw && Array.isArray(draw.topics) && draw.topics.includes(topic);
+  var acceptedTopic = topicAllowed ? topic : generalTopic && draw ? GENERAL_GEOMANCY_TOPIC : '';
   return {
     text: text || '书页只留下了这组卦象，请重新写下问题。',
-    isPrediction: Boolean(topicAllowed),
-    topic: topicAllowed ? topic : '',
-    draw: topicAllowed ? draw : null,
+    isPrediction: Boolean(acceptedTopic),
+    topic: acceptedTopic,
+    draw: acceptedTopic ? draw : null,
   };
 }
 

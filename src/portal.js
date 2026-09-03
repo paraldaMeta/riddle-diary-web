@@ -1,4 +1,11 @@
 import { TRACKS } from './music.js';
+import {
+  figureLabel,
+  getLocale,
+  membershipIntervalLabel,
+  membershipTierLabel,
+  t,
+} from './i18n.js';
 
 class ApiError extends Error {
   constructor(message, status, code, details) {
@@ -19,7 +26,7 @@ async function api(path, options = {}) {
     },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(payload.error || '请求失败，请稍后重试', response.status, payload.code, payload.details);
+  if (!response.ok) throw new ApiError(payload.error || t('requestFailed', getLocale()), response.status, payload.code, payload.details);
   return payload;
 }
 
@@ -30,23 +37,30 @@ function escapeHtml(value) {
 }
 
 function dateText(timestamp) {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(getLocale() === 'en' ? 'en-US' : 'zh-CN', {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(new Date(Number(timestamp) * 1000));
 }
 
 function money(cents) {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 }).format(Number(cents) / 100);
+  return new Intl.NumberFormat(getLocale() === 'en' ? 'en-US' : 'zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 }).format(Number(cents) / 100);
 }
 
-function paymentStatus(value) {
-  return ({ pending: '等待付款', paid: '已到账', failed: '未完成', refunded: '已退款', disputed: '争议处理中' })[value] || value;
+function paymentStatus(value, language) {
+  return ({
+    pending: t('pendingStatus', language),
+    paid: t('paidStatus', language),
+    failed: t('failedStatus', language),
+    refunded: t('refundedStatus', language),
+    disputed: t('disputedStatus', language),
+  })[value] || value;
 }
 
-export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
+export function createPortal({ music, beforeExternal, restoreExternal, onMembershipChange } = {}) {
+  const locale = getLocale();
+  const copy = (key, values) => t(key, locale, values);
   const root = document.getElementById('portal-root');
   const accountButton = document.getElementById('account-button');
-  const soundButton = document.getElementById('sound-button');
   let user = null;
   let config = null;
   let initialized = false;
@@ -60,14 +74,14 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   let hasOpened = false;
 
   root.innerHTML = `
-    <button class="portal-veil" type="button" aria-label="关闭帐号与声音"></button>
+    <button class="portal-veil" type="button" aria-label="${copy('closeAccountPage')}"></button>
     <aside class="portal-drawer" role="dialog" aria-modal="true" aria-labelledby="portal-title" aria-hidden="true">
       <div class="portal-frame">
         <header class="portal-head">
-          <div><div class="portal-kicker">答案之书内页</div><h2 id="portal-title">帐号与声音</h2></div>
-          <button class="portal-close" type="button" aria-label="关闭">×</button>
+          <div><div class="portal-kicker">${copy('brandKicker')}</div><h2 id="portal-title">${copy('portalTitle')}</h2></div>
+          <button class="portal-close" type="button" aria-label="${copy('close')}">×</button>
         </header>
-        <nav class="portal-nav" aria-label="帐号功能"></nav>
+        <nav class="portal-nav" aria-label="${copy('accountFeatures')}"></nav>
         <main class="portal-body"></main>
       </div>
     </aside>
@@ -86,12 +100,13 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   }
 
   function updateButtons() {
-    accountButton.dataset.credit = user ? (user.admin ? '∞' : String(user.credits)) : '';
+    const availableQuestions = user && !user.admin
+      ? Number(user.credits || 0) + Number(user.membership?.remaining || 0)
+      : null;
+    accountButton.dataset.credit = user ? (user.admin ? '∞' : String(availableQuestions)) : '';
     if (!user) accountButton.removeAttribute('data-credit');
-    accountButton.textContent = user ? '帐' : '入';
-    const sound = music.getState();
-    soundButton.textContent = sound.muted ? '静' : '音';
-    soundButton.setAttribute('aria-label', sound.muted ? '音乐已静音，点按开启' : `正在播放 ${sound.track.title}，点按静音`);
+    accountButton.textContent = user ? copy('account') : copy('accountSignIn');
+    accountButton.setAttribute('aria-label', user ? copy('accountLabelAccount') : copy('accountLabelSignIn'));
   }
 
   async function refresh() {
@@ -100,12 +115,14 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       user = data.user;
       config = data.config;
       initialized = true;
+      onMembershipChange?.(user?.membership || null, config?.billing?.premiumAnimations || config?.billing?.premiumAnimationUrl || '');
       updateButtons();
       return user;
     } catch (error) {
       initialized = true;
       config = null;
       user = null;
+      onMembershipChange?.(null, '');
       updateButtons();
       throw error;
     }
@@ -113,11 +130,15 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
 
   function navItems() {
     if (!user) return [
-      ['overview', '登录'], ['sound', '声音'], ['about', '说明'],
+      ['history', copy('history')], ['overview', copy('login')], ['about', copy('about')], ['sound', copy('sound')],
     ];
     return [
-      ['overview', '概览'], ['recharge', '充值'], ['history', '记录'], ['payments', '交易'], ['account', '帐号'], ['sound', '声音'],
+      ['history', copy('history')], ['overview', copy('accountNav')], ['sound', copy('sound')],
     ];
+  }
+
+  function selectedNavItem() {
+    return ['overview', 'recharge', 'payments', 'account', 'origin'].includes(active) ? 'overview' : active;
   }
 
   function renderNav() {
@@ -127,7 +148,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       button.type = 'button';
       button.dataset.section = id;
       button.textContent = label;
-      button.setAttribute('aria-selected', String(active === id));
+      button.setAttribute('aria-selected', String(selectedNavItem() === id));
       nav.appendChild(button);
     }
   }
@@ -144,6 +165,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     if (immersiveAuth) window.dispatchEvent(new CustomEvent('geomancer:auth-open'));
     renderNav();
     if (active === 'overview') user ? renderOverview() : renderAuth();
+    else if (active === 'origin') renderOriginStory();
     else if (active === 'recharge') renderRecharge();
     else if (active === 'history') renderHistory();
     else if (active === 'payments') renderPayments();
@@ -198,12 +220,12 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     }
     if (!user) {
       await open('overview');
-      toast('先登录，首次验证帐号会赠送三次提问');
+      toast(copy('loginRequired'));
       return false;
     }
-    if (!user.admin && user.credits < 1) {
+    if (!user.admin && user.credits < 1 && (user.membership?.remaining || 0) < 1) {
       await open('recharge');
-      toast('剩余次数不足，请先充值');
+      toast(copy('creditsEmpty'));
       return false;
     }
     return true;
@@ -211,20 +233,21 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
 
   function updateAfterAnswer(reply) {
     if (user && !user.admin && Number.isFinite(reply.remainingCredits)) user.credits = reply.remainingCredits;
+    if (user && reply.membership) user.membership = reply.membership;
     updateButtons();
   }
 
   async function handleApiError(error) {
     if (error.status === 401) await open('overview');
     else if (error.status === 402) await open('recharge');
-    toast(error.message || '请求失败，请稍后重试');
+    toast(error.message || copy('requestFailed'));
   }
 
   function authTabs() {
     const tabs = [
-      ['otp', '邮箱验证码'], ['password', '密码登录'], ['register', '注册'], ['reset', '重置密码'],
+      ['otp', copy('emailCode')], ['password', copy('passwordLogin')], ['register', copy('register')], ['reset', copy('resetPassword')],
     ];
-    if (config?.auth?.phoneEnabled) tabs.push(['phone', '手机号']);
+    if (config?.auth?.phoneEnabled) tabs.push(['phone', copy('phone')]);
     return `<div class="portal-auth-switch">${tabs.map(([id, label]) =>
       `<button type="button" data-auth-mode="${id}" class="${authMode === id ? 'active' : ''}">${label}</button>`
     ).join('')}</div>`;
@@ -235,35 +258,35 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     let fields = '';
     let submit = '';
     if (authMode === 'otp') {
-      fields = '<label class="portal-field">邮箱<input name="email" type="email" autocomplete="email" required></label>';
-      submit = '发送登录验证码';
+      fields = '<label class="portal-field">' + copy('email') + '<input name="email" type="email" autocomplete="email" required></label>';
+      submit = copy('sendLoginCode');
     } else if (authMode === 'password') {
-      fields = '<label class="portal-field">邮箱<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">密码<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>';
-      submit = '登录';
+      fields = '<label class="portal-field">' + copy('email') + '<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">' + copy('password') + '<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>';
+      submit = copy('loginButton');
     } else if (authMode === 'register') {
-      fields = '<label class="portal-field">邮箱<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">设置密码<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>';
-      submit = '验证邮箱并注册';
+      fields = '<label class="portal-field">' + copy('email') + '<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">' + copy('setPassword') + '<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>';
+      submit = copy('verifyAndRegister');
     } else if (authMode === 'reset') {
-      fields = '<label class="portal-field">注册邮箱<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">新密码<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>';
-      submit = '发送重置验证码';
+      fields = '<label class="portal-field">' + copy('registerEmail') + '<input name="email" type="email" autocomplete="email" required></label><label class="portal-field">' + copy('newPassword') + '<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>';
+      submit = copy('sendResetCode');
     } else {
-      fields = '<label class="portal-field">中国大陆手机号<input name="phone" type="tel" autocomplete="tel" placeholder="13800000000" required></label>';
-      submit = '发送短信验证码';
+      fields = '<label class="portal-field">' + copy('mainlandPhone') + '<input name="phone" type="tel" autocomplete="tel" placeholder="13800000000" required></label>';
+      submit = copy('sendSms');
     }
     const unavailable = !config?.auth?.turnstileSiteKey;
     section(`
       <div class="portal-auth-prologue">
-        <h3 class="portal-ink-prompt" data-ink-reveal="你是谁。"></h3>
-        <p class="portal-ink-copy" data-ink-reveal="告诉我吧，你的真名，我可以回答你3次问题。"></p>
+        <h3 class="portal-ink-prompt" data-ink-reveal="${escapeHtml(copy('whoAreYou'))}"></h3>
+        <p class="portal-ink-copy" data-ink-reveal="${escapeHtml(copy('tellName'))}"></p>
       </div>
       ${authTabs()}
       <form class="portal-form portal-auth-ui" id="portal-auth-form">
         ${fields}
         <div class="portal-turnstile" id="portal-turnstile"></div>
         <button class="portal-button primary" type="submit" ${unavailable ? 'disabled' : ''}>${submit}</button>
-        ${config?.auth?.googleEnabled ? '<button class="portal-button" type="button" id="portal-google">使用 Google 登录</button>' : ''}
+        ${config?.auth?.googleEnabled ? '<button class="portal-button" type="button" id="portal-google">' + copy('useGoogle') + '</button>' : ''}
       </form>
-      <p class="portal-message ${unavailable ? 'error' : ''}" id="portal-auth-message">${unavailable ? '登录服务正在配置中，暂时无法验证身份。' : ''}</p>
+      <p class="portal-message ${unavailable ? 'error' : ''}" id="portal-auth-message">${unavailable ? copy('authConfig') : ''}</p>
     `);
     if (!unavailable) mountTurnstile(authMode === 'register' ? 'register' : authMode === 'password' ? 'login' : authMode === 'reset' ? 'reset' : 'otp');
     body.querySelector('#portal-auth-form')?.addEventListener('submit', submitAuth);
@@ -287,7 +310,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       if (!host.isConnected) return;
       if (!window.turnstile) {
         if (++attempts < 50) setTimeout(tryRender, 100);
-        else setAuthMessage('人机验证加载失败，请检查网络后重试。', true);
+        else setAuthMessage(copy('turnstileLoad'), true);
         return;
       }
       if (turnstileWidget !== null) {
@@ -301,7 +324,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
         action,
         callback: token => { turnstileToken = token; setAuthMessage(''); },
         'expired-callback': () => { turnstileToken = ''; },
-        'error-callback': () => setAuthMessage('人机验证加载失败，请重试。', true),
+        'error-callback': () => setAuthMessage(copy('turnstileRetry'), true),
       });
     };
     tryRender();
@@ -309,11 +332,11 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
 
   async function submitAuth(event) {
     event.preventDefault();
-    if (!turnstileToken) return setAuthMessage('请先完成人机验证。', true);
+    if (!turnstileToken) return setAuthMessage(copy('verifyFirst'), true);
     const form = new FormData(event.currentTarget);
     const button = event.currentTarget.querySelector('[type="submit"]');
     button.disabled = true;
-    setAuthMessage('正在请求答案之书……');
+    setAuthMessage(copy('requesting'));
     try {
       let result;
       if (authMode === 'password') {
@@ -322,7 +345,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
         updateButtons();
         active = 'overview';
         render();
-        toast('已经登录');
+        toast(copy('alreadyLoggedIn'));
         return;
       }
       if (authMode === 'register') {
@@ -348,15 +371,15 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   function renderChallenge() {
     section(`
       <div class="portal-auth-prologue">
-        <h3 class="portal-ink-prompt" data-ink-reveal="信已经送到。"></h3>
-        <p class="portal-ink-copy" data-ink-reveal="${escapeHtml(challenge.message || '验证码已发送')}。写下六位数字，我便会认出你。"></p>
+        <h3 class="portal-ink-prompt" data-ink-reveal="${escapeHtml(copy('letterSent'))}"></h3>
+        <p class="portal-ink-copy" data-ink-reveal="${escapeHtml((challenge.message || copy('codeSent')) + (locale === 'en' ? '. ' : '。') + copy('challengeCopy'))}"></p>
       </div>
       <form class="portal-form portal-auth-ui" id="portal-code-form">
-        <label class="portal-field">验证码<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
-        <button class="portal-button primary" type="submit">确认验证码</button>
-        <button class="portal-button" type="button" id="portal-code-back">返回</button>
+        <label class="portal-field">${copy('verificationCode')}<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+        <button class="portal-button primary" type="submit">${copy('confirmCode')}</button>
+        <button class="portal-button" type="button" id="portal-code-back">${copy('back')}</button>
       </form>
-      <p class="portal-message" id="portal-auth-message">${challenge.debugCode ? `本地测试验证码：${escapeHtml(challenge.debugCode)}` : ''}</p>
+      <p class="portal-message" id="portal-auth-message">${challenge.debugCode ? escapeHtml(t('localCode', locale, { code: challenge.debugCode })) : ''}</p>
     `);
     body.querySelector('#portal-code-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -364,13 +387,14 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       const button = event.currentTarget.querySelector('[type="submit"]');
       button.disabled = true;
       try {
+        const completedMode = challenge.mode;
         const result = await api('/api/auth/otp/verify', { method: 'POST', body: JSON.stringify({ challengeId: challenge.id, code }) });
         user = result.user;
         challenge = null;
-        active = 'overview';
+        active = completedMode === 'register' ? 'origin' : 'overview';
         updateButtons();
         render();
-        toast(user ? '验证成功，答案之书已经认出你' : '验证成功');
+        toast(user ? copy('recognized') : copy('verified'));
       } catch (error) {
         setAuthMessage(error.message, true);
         button.disabled = false;
@@ -383,8 +407,28 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     revealInk();
   }
 
+  function renderOriginStory() {
+    section(`
+      <div class="portal-origin">
+        <div class="portal-auth-prologue">
+          <h3 class="portal-ink-prompt" data-ink-reveal="${escapeHtml(copy('originTitle'))}"></h3>
+          <p class="portal-ink-copy" data-ink-reveal="${escapeHtml(copy('originOne'))}"></p>
+        </div>
+        <div class="portal-card portal-origin-card">
+          <p>${escapeHtml(copy('originTwo'))}</p>
+          <p>${escapeHtml(copy('originThree'))}</p>
+        </div>
+        <div class="portal-actions portal-origin-actions">
+          <button class="portal-button primary" type="button" data-close-portal>${copy('beginWriting')}</button>
+          <button class="portal-button" type="button" data-go="overview">${copy('stayInAccount')}</button>
+        </div>
+      </div>
+    `);
+    revealInk();
+  }
+
   async function startGoogle() {
-    if (!turnstileToken) return setAuthMessage('请先完成人机验证。', true);
+    if (!turnstileToken) return setAuthMessage(copy('verifyFirst'), true);
     try {
       beforeExternal?.();
       const result = await api('/api/auth/google/start', { method: 'POST', body: JSON.stringify({ turnstileToken, returnTo: '/' }) });
@@ -393,58 +437,109 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   }
 
   function renderOverview() {
+    const membership = user.membership;
+    const availableQuestions = user.admin ? null : Number(user.credits || 0) + Number(membership?.remaining || 0);
+    const membershipStatus = membership?.status === 'past_due' ? copy('membershipPastDue') : copy('membershipActive');
+    const membershipEnd = membership?.cancelAtPeriodEnd
+      ? copy('membershipEnding', { date: dateText(membership.periodEndsAt) })
+      : '';
+    const membershipTier = membership ? membershipTierLabel(membership.tier, locale) : copy('noMembership');
     section(`
       <div class="portal-card">
-        <div class="portal-label">可用次数</div>
-        <div class="portal-balance"><strong>${user.admin ? '∞' : user.credits}</strong><span>${user.admin ? '管理员不限次数' : '次'}</span></div>
+        <div class="portal-label">${copy('availableCredits')}</div>
+        <div class="portal-balance"><strong>${user.admin ? '∞' : availableQuestions}</strong><span>${user.admin ? copy('adminCredits') : copy('creditUnit')}</span></div>
+      </div>
+      <div class="portal-card portal-membership-card">
+        <div class="portal-label">${copy('currentMembership')}</div>
+        <div class="portal-membership-head">
+          <strong>${escapeHtml(membershipTier)}</strong>
+          ${membership ? `<span class="portal-status">${escapeHtml(membershipStatus)}</span>` : ''}
+        </div>
+        ${membership
+          ? `<p class="portal-lead" style="margin:.55rem 0 0">${escapeHtml(t('membershipQuota', locale, { count: membership.remaining }))} · ${escapeHtml(membershipIntervalLabel(membership.interval, locale))}${membershipEnd ? ` · ${escapeHtml(membershipEnd)}` : ''}</p>`
+          : `<p class="portal-lead" style="margin:.55rem 0 0">${copy('membershipLead')}</p>`}
+        ${membership ? `<button class="portal-button" type="button" data-manage-subscription>${copy('membershipManage')}</button>` : `<button class="portal-button primary" type="button" data-go="recharge">${copy('membershipChoose')}</button>`}
       </div>
       <div class="portal-card">
-        <div class="portal-label">当前帐号</div>
-        <div>${escapeHtml(user.email || user.phone || '已验证帐号')}</div>
-        <p class="portal-lead" style="margin:.55rem 0 0">每次成功回答扣除一次；无法识别、模型失败或格式异常会自动退回。</p>
+        <div class="portal-label">${copy('currentAccount')}</div>
+        <div>${escapeHtml(user.email || user.phone || copy('verifiedAccount'))}</div>
+        <p class="portal-lead" style="margin:.55rem 0 0">${copy('refundLead')}</p>
       </div>
-      <div class="portal-actions">
-        ${user.admin ? '' : '<button class="portal-button primary" type="button" data-go="recharge">购买次数</button>'}
-        <button class="portal-button" type="button" data-go="history">查看问答记录</button>
+      <div class="portal-card portal-account-actions">
+        <div class="portal-label">${copy('pageOptions')}</div>
+        <div class="portal-actions">
+          ${user.admin ? '' : (membership ? '' : '<button class="portal-button primary" type="button" data-go="recharge">' + copy('buyCredits') + '</button>')}
+          <button class="portal-button" type="button" data-go="payments">${copy('transactions')}</button>
+          <button class="portal-button" type="button" data-go="account">${copy('accountSettings')}</button>
+        </div>
       </div>
     `);
   }
 
   function renderRecharge() {
-    const packages = config?.billing?.packages || [];
+    const memberships = config?.billing?.memberships || [];
     section(`
-      <p class="portal-lead">一次性购买，次数永久有效。由 Stripe 安全结算；银行卡、Apple Pay、支付宝与微信支付是否显示，以结账页和 Stripe 帐号开通状态为准。</p>
-      <div class="portal-packages">${packages.map(item => `
-        <button class="portal-button portal-package" type="button" data-package="${escapeHtml(item.id)}" ${config?.billing?.enabled ? '' : 'disabled'}>
-          <strong>${money(item.amount)}</strong><small>${item.credits} 次提问</small>
+      <button class="portal-back" type="button" data-go="overview">← ${copy('rechargeBack')}</button>
+      <h3>${copy('membershipTitle')}</h3>
+      <p class="portal-lead">${copy('rechargeLead')}</p>
+      <div class="portal-segmented" role="tablist" aria-label="${copy('membershipTitle')}">
+        <button class="portal-segment" type="button" role="tab" aria-selected="true" data-membership-interval="month">${copy('monthly')}</button>
+        <button class="portal-segment" type="button" role="tab" aria-selected="false" data-membership-interval="year">${copy('yearly')} <small>${copy('membershipYearlyValue')}</small></button>
+      </div>
+      <div class="portal-packages portal-memberships">${memberships.map(item => `
+        <button class="portal-button portal-package portal-membership-plan" type="button" data-membership-plan="${escapeHtml(item.id)}" data-interval="${escapeHtml(item.interval)}" ${config?.billing?.enabled ? '' : 'disabled'}>
+          <span class="portal-plan-kicker">${escapeHtml(membershipTierLabel(item.tier, locale))}</span>
+          <strong>${money(item.amount)}<small> / ${escapeHtml(membershipIntervalLabel(item.interval, locale))}</small></strong>
+          <span>${escapeHtml(t('membershipCycle', locale, { count: item.credits }))}</span>
+          <small>${item.tier === 'advanced' ? copy('membershipAnimation') : copy('membershipRollover')}</small>
         </button>`).join('')}</div>
-      ${config?.billing?.enabled ? '' : '<p class="portal-message error">充值服务正在配置中，目前无法创建订单。</p>'}
-      <p class="portal-message">支付即表示同意<a href="/refund" target="_blank" rel="noopener" style="color:inherit">充值与退款说明</a>。除重复扣款、系统错误、法律要求等情形外，充值后原则上不退款。</p>
+      ${config?.billing?.enabled ? '' : '<p class="portal-message error">' + copy('billingUnavailable') + '</p>'}
+      <p class="portal-message">${copy('paymentLead')}<a href="/refund" target="_blank" rel="noopener" style="color:inherit">${copy('refundLink')}</a>${copy('refundTail')}</p>
     `);
-    body.querySelectorAll('[data-package]').forEach(button => button.addEventListener('click', () => beginCheckout(button)));
+    const setInterval = interval => {
+      body.querySelectorAll('[data-membership-interval]').forEach(button => {
+        button.setAttribute('aria-selected', String(button.dataset.membershipInterval === interval));
+      });
+      body.querySelectorAll('[data-membership-plan]').forEach(button => {
+        button.hidden = button.dataset.interval !== interval;
+      });
+    };
+    body.querySelectorAll('[data-membership-interval]').forEach(button => button.addEventListener('click', () => setInterval(button.dataset.membershipInterval)));
+    body.querySelectorAll('[data-membership-plan]').forEach(button => button.addEventListener('click', () => beginCheckout(button)));
+    setInterval('month');
   }
 
   async function beginCheckout(button) {
     button.disabled = true;
     try {
       beforeExternal?.();
-      const result = await api('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ packageId: button.dataset.package }) });
+      toast(copy('membershipCheckout'));
+      const result = await api('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ planId: button.dataset.membershipPlan, locale }) });
       location.assign(result.checkoutUrl);
     } catch (error) { toast(error.message); button.disabled = false; }
   }
 
+  async function manageSubscription(button) {
+    button.disabled = true;
+    try {
+      beforeExternal?.();
+      const result = await api('/api/billing/portal', { method: 'POST' });
+      location.assign(result.url);
+    } catch (error) { toast(error.message || copy('membershipNotFound')); button.disabled = false; }
+  }
+
   async function renderHistory() {
-    section('<p class="portal-lead">只保存识别后的问题、回答和卦象，不保存手写图片。最多保留最近一百条。</p><div class="portal-empty">正在翻阅记录……</div>');
+    section('<p class="portal-lead">' + copy('readingHistory') + '</p><div class="portal-empty">' + copy('reading') + '</div>');
     try {
       const result = await api('/api/conversations');
       const list = result.conversations || [];
       section(`
         <div class="portal-actions" style="justify-content:space-between;margin-bottom:1rem">
-          <span class="portal-lead" style="margin:0">共 ${list.length} 条</span>
-          ${list.length ? '<button class="portal-button danger" type="button" id="portal-clear-history">清空全部</button>' : ''}
+          <span class="portal-lead" style="margin:0">${t('total', locale, { count: list.length })}</span>
+          ${list.length ? '<button class="portal-button danger" type="button" id="portal-clear-history">' + copy('clearAll') + '</button>' : ''}
         </div>
         <div class="portal-list" id="portal-history-list"></div>
-        ${list.length ? '' : '<div class="portal-empty">还没有问答记录。<br>在书页上写下第一个问题吧。</div>'}
+        ${list.length ? '' : '<div class="portal-empty">' + copy('noHistory') + '</div>'}
       `);
       const container = body.querySelector('#portal-history-list');
       for (const item of list) container.appendChild(historyEntry(item));
@@ -455,43 +550,52 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   function historyEntry(item) {
     const article = document.createElement('article');
     article.className = 'portal-entry';
-    const oracle = item.geomancy ? `${item.geomancy.left} ＋ ${item.geomancy.right} ＝ ${item.geomancy.result} · ${item.topic}` : '';
+    const oracle = item.geomancy ? `${figureLabel(item.geomancy.left, locale)} ${locale === 'en' ? '+' : '＋'} ${figureLabel(item.geomancy.right, locale)} ${locale === 'en' ? '=' : '＝'} ${figureLabel(item.geomancy.result, locale)} · ${item.topic === '基本卦义' ? copy('coreFigures') : item.topic}` : '';
     article.innerHTML = `
       <time>${dateText(item.createdAt)}</time>
       <div class="portal-question"></div>
       ${oracle ? '<div class="portal-oracle"></div>' : ''}
       <div class="portal-answer"></div>
-      <div class="portal-entry-tools"><button type="button">删除这条</button></div>`;
-    article.querySelector('.portal-question').textContent = `问：${item.question}`;
+      <div class="portal-entry-tools"><button type="button">${copy('deleteEntry')}</button></div>`;
+    article.querySelector('.portal-question').textContent = t('questionPrefix', locale, { question: item.question });
     article.querySelector('.portal-answer').textContent = item.text;
     if (oracle) article.querySelector('.portal-oracle').textContent = oracle;
     article.querySelector('button').addEventListener('click', async () => {
-      if (!confirm('删除这条问答记录？')) return;
-      try { await api(`/api/conversations/${encodeURIComponent(item.id)}`, { method: 'DELETE' }); article.remove(); toast('记录已删除'); }
+      if (!confirm(copy('deleteConfirm'))) return;
+      try { await api(`/api/conversations/${encodeURIComponent(item.id)}`, { method: 'DELETE' }); article.remove(); toast(copy('deleted')); }
       catch (error) { toast(error.message); }
     });
     return article;
   }
 
   async function clearHistory() {
-    if (!confirm('确定清空全部问答记录？此操作无法撤销。')) return;
-    try { await api('/api/conversations', { method: 'DELETE' }); renderHistory(); toast('问答记录已清空'); }
+    if (!confirm(copy('clearHistoryConfirm'))) return;
+    try { await api('/api/conversations', { method: 'DELETE' }); renderHistory(); toast(copy('historyCleared')); }
     catch (error) { toast(error.message); }
   }
 
   async function renderPayments() {
-    section('<div class="portal-empty">正在读取交易记录……</div>');
+    section('<div class="portal-empty">' + copy('readingPayments') + '</div>');
     try {
       const result = await api('/api/billing/payments');
       const list = result.payments || [];
       section(`
-        <p class="portal-lead">支付记录作为财务审计记录长期保留。注销帐号后会去除帐号和邮箱关联。</p>
-        <div class="portal-list">${list.map(item => `
+        <button class="portal-back" type="button" data-go="overview">← ${copy('rechargeBack')}</button>
+        <p class="portal-lead">${copy('auditLead')}</p>
+        <div class="portal-list">${list.map(item => {
+          const plan = item.kind === 'membership' ? (config?.billing?.memberships || []).find(candidate => candidate.id === item.planId) : null;
+          const label = plan ? membershipTierLabel(plan.tier, locale) : item.kind === 'membership' ? copy('membership') : copy('membershipLegacy');
+          const count = item.kind === 'membership'
+            ? t('membershipPaymentCount', locale, { amount: money(item.amount), count: item.credits })
+            : t('paymentCount', locale, { amount: money(item.amount), count: item.credits });
+          return `
           <div class="portal-card portal-payment">
-            <strong>${money(item.amount)} · ${item.credits} 次</strong><span class="portal-status">${paymentStatus(item.status)}</span>
-            <small>${dateText(item.createdAt)}</small><small>${item.refundedAmount ? `已退 ${money(item.refundedAmount)}` : ''}</small>
-          </div>`).join('')}</div>
-        ${list.length ? '' : '<div class="portal-empty">还没有交易记录。</div>'}
+            <strong>${escapeHtml(label)}</strong><span class="portal-status">${paymentStatus(item.status, locale)}</span>
+            <small>${escapeHtml(count)}</small><small>${dateText(item.createdAt)}</small>
+            <small>${item.refundedAmount ? escapeHtml(t('refunded', locale, { amount: money(item.refundedAmount) })) : ''}</small>
+          </div>`;
+        }).join('')}</div>
+        ${list.length ? '' : '<div class="portal-empty">' + copy('noPayments') + '</div>'}
       `);
     } catch (error) { section(`<div class="portal-empty">${escapeHtml(error.message)}</div>`); }
   }
@@ -499,18 +603,19 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   function renderAccount() {
     const canLinkPhone = config?.auth?.phoneEnabled && !user.phone;
     section(`
+      <button class="portal-back" type="button" data-go="overview">← ${copy('rechargeBack')}</button>
       <div class="portal-card">
-        <div class="portal-label">登录身份</div>
-        <div>${escapeHtml(user.email || user.phone || '已验证帐号')}</div>
-        <p class="portal-lead" style="margin:.6rem 0 0">${user.hasPassword ? '已设置密码' : '未设置密码'}${user.hasGoogle ? ' · 已关联 Google' : ''}${user.phone ? ' · 已绑定手机号' : ''}</p>
+        <div class="portal-label">${copy('loginIdentity')}</div>
+        <div>${escapeHtml(user.email || user.phone || copy('verifiedAccount'))}</div>
+        <p class="portal-lead" style="margin:.6rem 0 0">${user.hasPassword ? copy('passwordSet') : copy('passwordNotSet')}${user.hasGoogle ? ' · ' + copy('googleLinked') : ''}${user.phone ? ' · ' + copy('phoneLinked') : ''}</p>
       </div>
       <div class="portal-actions">
-        ${canLinkPhone ? '<button class="portal-button" type="button" id="portal-link-phone">绑定手机号</button>' : ''}
-        <button class="portal-button" type="button" id="portal-logout">退出登录</button>
-        <button class="portal-button danger" type="button" id="portal-delete-account">注销帐号</button>
+        ${canLinkPhone ? '<button class="portal-button" type="button" id="portal-link-phone">' + copy('linkPhone') + '</button>' : ''}
+        <button class="portal-button" type="button" id="portal-logout">${copy('logout')}</button>
+        <button class="portal-button danger" type="button" id="portal-delete-account">${copy('deleteAccount')}</button>
       </div>
-      <p class="portal-message">注销将删除身份、会话和问答内容；支付记录会去标识化保留。此操作无法撤销。</p>
-      <div class="portal-legal" style="margin-top:1rem"><a href="/privacy" target="_blank">隐私政策</a><a href="/terms" target="_blank">用户条款</a></div>
+      <p class="portal-message">${copy('deleteWarning')}</p>
+      <div class="portal-legal" style="margin-top:1rem"><a href="/privacy" target="_blank">${copy('privacy')}</a><a href="/terms" target="_blank">${copy('terms')}</a></div>
     `);
     body.querySelector('#portal-logout').addEventListener('click', logout);
     body.querySelector('#portal-delete-account').addEventListener('click', deleteAccount);
@@ -519,12 +624,12 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
 
   function renderPhoneLink() {
     section(`
-      <p class="portal-lead">绑定中国大陆手机号后，可以直接使用短信验证码登录。绑定身份不会重复赠送试用次数。</p>
+      <p class="portal-lead">${copy('linkPhoneLead')}</p>
       <form class="portal-form" id="portal-phone-link-form">
-        <label class="portal-field">手机号<input name="phone" type="tel" autocomplete="tel" placeholder="13800000000" required></label>
+        <label class="portal-field">${copy('phone')}<input name="phone" type="tel" autocomplete="tel" placeholder="13800000000" required></label>
         <div class="portal-turnstile" id="portal-turnstile"></div>
-        <button class="portal-button primary" type="submit">发送绑定验证码</button>
-        <button class="portal-button" type="button" id="portal-phone-link-back">返回帐号</button>
+        <button class="portal-button primary" type="submit">${copy('sendLinkCode')}</button>
+        <button class="portal-button" type="button" id="portal-phone-link-back">${copy('rechargeBack')}</button>
       </form>
       <p class="portal-message" id="portal-auth-message"></p>
     `);
@@ -532,7 +637,7 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     body.querySelector('#portal-phone-link-back').addEventListener('click', renderAccount);
     body.querySelector('#portal-phone-link-form').addEventListener('submit', async event => {
       event.preventDefault();
-      if (!turnstileToken) return setAuthMessage('请先完成人机验证。', true);
+      if (!turnstileToken) return setAuthMessage(copy('verifyFirst'), true);
       const button = event.currentTarget.querySelector('[type="submit"]');
       button.disabled = true;
       try {
@@ -556,20 +661,21 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       active = 'overview';
       updateButtons();
       render();
-      toast('已经退出登录');
+      toast(copy('loggedOut'));
     } catch (error) { toast(error.message); }
   }
 
   async function deleteAccount() {
-    const confirmation = prompt('此操作无法撤销。请输入“注销帐号”确认：');
-    if (confirmation !== '注销帐号') return;
+    const confirmation = prompt(copy('deletePrompt'));
+    const expectedConfirmation = locale === 'en' ? 'Delete account' : '注销帐号';
+    if (confirmation !== expectedConfirmation) return;
     try {
-      await api('/api/account', { method: 'DELETE', body: JSON.stringify({ confirmation }) });
+      await api('/api/account', { method: 'DELETE', body: JSON.stringify({ confirmation: '注销帐号' }) });
       user = null;
       active = 'overview';
       updateButtons();
       render();
-      toast('帐号已经注销');
+      toast(copy('deletedAccount'));
     } catch (error) { toast(error.message); }
   }
 
@@ -577,21 +683,21 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
     const state = music.getState();
     section(`
       <div class="portal-card">
-        <div class="portal-label">正在轮转</div>
+        <div class="portal-label">${copy('rotating')}</div>
         <div class="portal-track" id="portal-track-title">${escapeHtml(state.track.title)}</div>
-        <p class="portal-message">${state.waitingForGesture ? '浏览器阻止了自动播放，触碰页面后音乐会开始。' : state.playing ? '低音量播放中' : '已暂停'}</p>
+        <p class="portal-message">${state.waitingForGesture ? copy('autoplayBlocked') : state.playing ? copy('playing') : copy('paused')}</p>
         <div class="portal-actions">
-          <button class="portal-button" type="button" id="portal-play">${state.playing ? '暂停' : '播放'}</button>
-          <button class="portal-button" type="button" id="portal-mute">${state.muted ? '取消静音' : '静音'}</button>
-          <button class="portal-button" type="button" id="portal-next">下一首</button>
+          <button class="portal-button" type="button" id="portal-play">${state.playing ? copy('pause') : copy('play')}</button>
+          <button class="portal-button" type="button" id="portal-mute">${state.muted ? copy('unmute') : copy('mute')}</button>
+          <button class="portal-button" type="button" id="portal-next">${copy('next')}</button>
         </div>
-        <label class="portal-field" style="margin-top:1rem">音量
+        <label class="portal-field" style="margin-top:1rem">${copy('volume')}
           <input id="portal-volume" type="range" min="0" max="0.35" step="0.01" value="${state.volume}">
         </label>
       </div>
       <div class="portal-attribution">
-        <p>音乐：Kevin MacLeod（incompetech.com），按 CC BY 4.0 授权。本站仅进行了适合网页播放的 MP3 压缩转换。</p>
-        <div class="portal-legal">${TRACKS.map(track => `<a href="${track.source}" target="_blank" rel="noopener">${escapeHtml(track.title)} ↗</a>`).join('')}<a href="/music-credits" target="_blank">完整音乐署名与许可</a></div>
+        <p>${copy('musicCredit')}</p>
+        <div class="portal-legal">${TRACKS.map(track => `<a href="${track.source}" target="_blank" rel="noopener">${escapeHtml(track.title)} ↗</a>`).join('')}<a href="/music-credits" target="_blank">${copy('fullMusicCredit')}</a></div>
       </div>
     `);
     body.querySelector('#portal-play').addEventListener('click', async () => {
@@ -612,9 +718,9 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
 
   function renderAbout() {
     section(`
-      <p class="portal-lead">把问题写在书页上，答案会像墨迹一样出现。预测性问题会随机抽取固定的地占组合；非预测问题继续由日记本身回应。</p>
-      <div class="portal-card"><div class="portal-label">次数规则</div><p class="portal-answer">首次验证赠送三次。每个成功回答扣一次；识别失败、模型失败或格式异常自动退回。购买与赠送次数永久有效。</p></div>
-      <div class="portal-legal"><a href="/privacy" target="_blank">隐私政策</a><a href="/terms" target="_blank">用户条款</a><a href="/refund" target="_blank">充值与退款说明</a><a href="/music-credits" target="_blank">音乐署名</a></div>
+      <p class="portal-lead">${copy('aboutLead')}</p>
+      <div class="portal-card"><div class="portal-label">${copy('creditRules')}</div><p class="portal-answer">${copy('creditRulesCopy')}</p></div>
+      <div class="portal-legal"><a href="/privacy" target="_blank">${copy('privacy')}</a><a href="/terms" target="_blank">${copy('terms')}</a><a href="/refund" target="_blank">${copy('refundLink')}</a><a href="/music-credits" target="_blank">${copy('music')}</a></div>
     `);
   }
 
@@ -632,13 +738,13 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
       if (checkout === 'success' && sessionId) {
         const result = await api('/api/billing/confirm', { method: 'POST', body: JSON.stringify({ sessionId }) });
         toast(result.credited
-          ? '付款已经确认，次数已到账'
+          ? copy('paidConfirmed')
           : result.paid
-            ? '付款成功，正在等待支付通知入账'
-            : '付款仍在处理中，到账后余额会自动更新');
-      } else if (checkout === 'cancelled') toast('已取消付款，笔迹仍然保留');
-      else if (auth === 'success') toast('登录成功，笔迹已经恢复');
-      else if (auth === 'error') toast('Google 登录没有完成，请重试');
+            ? copy('paidWaiting')
+            : copy('paidProcessing'));
+      } else if (checkout === 'cancelled') toast(copy('paymentCancelled'));
+      else if (auth === 'success') toast(copy('loginRestored'));
+      else if (auth === 'error') toast(copy('googleIncomplete'));
       await refresh();
     } catch (error) { toast(error.message); }
     restoreExternal?.();
@@ -647,20 +753,27 @@ export function createPortal({ music, beforeExternal, restoreExternal } = {}) {
   nav.addEventListener('click', event => {
     const button = event.target.closest('[data-section]');
     if (!button) return;
+    if (button.dataset.section === 'history' && !user) {
+      open('overview');
+      toast(copy('historyLogin'));
+      return;
+    }
     active = button.dataset.section;
     render();
   });
   body.addEventListener('click', event => {
     const authButton = event.target.closest('[data-auth-mode]');
     if (authButton) { authMode = authButton.dataset.authMode; challenge = null; renderAuth(); return; }
+    const closeButton = event.target.closest('[data-close-portal]');
+    if (closeButton) { close(); return; }
+    const manageButton = event.target.closest('[data-manage-subscription]');
+    if (manageButton) { manageSubscription(manageButton); return; }
     const go = event.target.closest('[data-go]');
     if (go) { active = go.dataset.go; render(); }
   });
   root.querySelector('.portal-veil').addEventListener('click', close);
   root.querySelector('.portal-close').addEventListener('click', close);
   accountButton.addEventListener('click', () => open('overview'));
-  soundButton.addEventListener('click', () => music.toggleMuted());
-  music.subscribe(updateButtons);
   window.addEventListener('geomancer:install-start', () => { hasOpened = true; });
 
   async function initialize() {

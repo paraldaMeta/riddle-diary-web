@@ -66,7 +66,7 @@ async function networkFirstPage(request, cacheKey) {
   } catch {
     return (await caches.match(request)) ||
       (await caches.match('/')) ||
-      new Response('答案之书目前处于离线状态。', {
+      new Response('地占解答书目前处于离线状态。', {
         status: 503,
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });

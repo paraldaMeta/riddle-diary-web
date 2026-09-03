@@ -120,6 +120,42 @@
       70% { opacity: calc(var(--candle) * 0.95); }
     }
 
+    /* Advanced membership media is loaded only after the server confirms the tier. */
+    #premium-light {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 1;
+      transition: opacity 900ms ease, visibility 0s linear 900ms;
+    }
+    #premium-light video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0.68;
+      mix-blend-mode: screen;
+      filter: saturate(0.78) contrast(1.05);
+      transform: scale(1.04);
+      animation: premiumLightFloat 18s ease-in-out infinite alternate;
+    }
+    body.premium-member #premium-light {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 900ms ease;
+    }
+    body.premium-member #premium-light.premium-unavailable { opacity: 0; visibility: hidden; }
+    #premium-light.premium-unavailable { opacity: 0; visibility: hidden; }
+    #premium-light[hidden] { display: none; }
+    @keyframes premiumLightFloat {
+      from { transform: scale(1.04) translate3d(-0.6%, -0.4%, 0); }
+      to { transform: scale(1.08) translate3d(0.6%, 0.4%, 0); }
+    }
+
     /* Author signature */
     #watermark {
       position: fixed;
@@ -201,6 +237,60 @@
       pointer-events: none;
     }
     #status.visible { opacity: 0.6; }
+    #status.status-recovery {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.55rem;
+      width: min(92vw, 760px);
+      padding: 0.72rem 1rem 0.8rem;
+      border: 1px solid rgba(216, 187, 132, 0.2);
+      border-radius: 16px;
+      background: rgba(8, 6, 4, 0.84);
+      color: var(--status);
+      opacity: 0.98;
+      pointer-events: auto;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+    }
+    #status.status-recovery .status-recovery-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.6rem;
+      color: var(--reply-ink);
+      pointer-events: auto;
+      font-family: 'LXGW WenKai Lite', 'Kaiti SC', serif;
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+    #status.status-recovery .status-recovery-label { color: var(--status); }
+    #status.status-recovery .status-recovery-button {
+      min-height: 34px;
+      padding: 0.42rem 0.8rem;
+      border: 1px solid rgba(216, 187, 132, 0.26);
+      border-radius: 999px;
+      background: rgba(216, 187, 132, 0.06);
+      color: var(--reply-ink);
+      font: inherit;
+      cursor: pointer;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+    }
+    #status.status-recovery .status-recovery-button:hover,
+    #status.status-recovery .status-recovery-button:focus-visible,
+    #status.status-recovery .status-recovery-button.active {
+      border-color: rgba(216, 187, 132, 0.72);
+      background: rgba(216, 187, 132, 0.16);
+      color: var(--reply-ink);
+      outline: none;
+    }
+    #status.status-recovery .status-recovery-button.primary {
+      border-color: rgba(243, 223, 182, 0.5);
+      background: rgba(243, 223, 182, 0.88);
+      color: #120d07;
+    }
     #thinking-dots { display: inline-flex; gap: 4px; margin-left: 4px; }
     #thinking-dots span {
       width: 5px; height: 5px; border-radius: 50%;
@@ -248,17 +338,17 @@
 <body>
   <canvas id="paper"></canvas>
   <div id="candle"></div>
+  <div id="premium-light" hidden aria-hidden="true"><video id="premium-animation" muted playsinline preload="metadata"></video></div>
   <div id="watermark">Oscar Grey</div>
 
-  <button id="sound-button" type="button" aria-label="声音">音</button>
-  <button id="account-button" type="button" aria-label="打开帐号与声音">入</button>
+  <button id="account-button" type="button" aria-label="打开登录与帐号页面">入</button>
 
   <div id="guide">
     <div class="title" aria-label="The Geomancer’s Book of Answers">
       <span aria-hidden="true">The Geomancer’s</span>
       <span aria-hidden="true">Book of Answers</span>
     </div>
-    <div class="hint">写上你的问题，地占答案之书将会为你解答。</div>
+    <div class="hint">写上你的问题，地占解答书将会为你解答。</div>
     <button id="install-app" type="button">安装到设备</button>
   </div>
 
@@ -272,9 +362,13 @@
   <script type="module">
   import { createMusicController } from '/music.js';
   import { createPortal } from '/portal.js';
+  import { figureLabel, getLocale, t } from '/i18n.js';
 
   (() => {
   'use strict';
+
+  const LOCALE = getLocale();
+  const copy = key => t(key, LOCALE);
 
   // ---- Config --------------------------------------------------------------
   const IDLE_MS = 2800;
@@ -305,8 +399,36 @@
   var canvas = document.getElementById('paper');
   var ctx = canvas.getContext('2d', { willReadFrequently: false });
   var guideEl = document.getElementById('guide');
+  var guideTitleEl = guideEl.querySelector('.title');
+  var guideHintEl = guideEl.querySelector('.hint');
   var statusEl = document.getElementById('status');
   var installAppEl = document.getElementById('install-app');
+  var accountButtonEl = document.getElementById('account-button');
+  var premiumLightEl = document.getElementById('premium-light');
+  var premiumVideoEl = document.getElementById('premium-animation');
+
+  document.documentElement.lang = LOCALE === 'en' ? 'en' : 'zh-CN';
+  document.title = copy('brand');
+  document.querySelector('meta[name="apple-mobile-web-app-title"]').content = copy('brand');
+  guideTitleEl.replaceChildren();
+  if (LOCALE === 'en') {
+    ['The Geomancer’s', 'Book of Answers'].forEach(function(line) {
+      var titleLine = document.createElement('span');
+      titleLine.setAttribute('aria-hidden', 'true');
+      titleLine.textContent = line;
+      guideTitleEl.appendChild(titleLine);
+    });
+  } else {
+    var titleLine = document.createElement('span');
+    titleLine.setAttribute('aria-hidden', 'true');
+    titleLine.textContent = copy('brand');
+    guideTitleEl.appendChild(titleLine);
+  }
+  guideTitleEl.setAttribute('aria-label', copy('brand'));
+  guideHintEl.textContent = copy('guideHint');
+  installAppEl.textContent = copy('install');
+  accountButtonEl.textContent = copy('accountSignIn');
+  accountButtonEl.setAttribute('aria-label', copy('accountLabelSignIn'));
 
   // ---- Canvas sizing -------------------------------------------------------
   var dpr = window.devicePixelRatio || 1;
@@ -342,14 +464,100 @@
 
   // ---- State ---------------------------------------------------------------
   var drawing = false, erasing = false;
+  var inputMode = 'write';
   var lastX = 0, lastY = 0, lastP = 0;
   var strokes = [];
   var currentStroke = null;
   var idleTimer = null;
   var waiting = false, replyActive = false;
   var pendingRequestId = null;
+  var recoveryEdited = false;
   var portal = null;
   var guideHideTimer = null;
+  var premiumMember = false;
+  var premiumAnimations = {};
+  var premiumPlaybackToken = 0;
+  var premiumHideTimer = null;
+
+  function normalizePremiumAnimations(animations) {
+    if (typeof animations === 'string' && animations) {
+      return { lumos: animations, map: animations, flourish: animations };
+    }
+    if (!animations || typeof animations !== 'object') return {};
+    return Object.keys(animations).reduce(function(result, key) {
+      if (typeof animations[key] === 'string' && animations[key]) result[key] = animations[key];
+      return result;
+    }, {});
+  }
+
+  function hidePremiumAnimation() {
+    premiumPlaybackToken += 1;
+    clearTimeout(premiumHideTimer);
+    premiumHideTimer = null;
+    premiumVideoEl.pause();
+    premiumVideoEl.onended = null;
+    premiumVideoEl.onerror = null;
+    premiumVideoEl.removeAttribute('src');
+    delete premiumVideoEl.dataset.source;
+    delete premiumVideoEl.dataset.stage;
+    premiumLightEl.hidden = true;
+    premiumLightEl.classList.remove('premium-unavailable');
+  }
+
+  function playPremiumStage(stage) {
+    if (!premiumMember) return;
+    var source = premiumAnimations[stage];
+    if (!source) {
+      if (stage === 'map') return playPremiumStage('flourish');
+      if (stage === 'lumos' && premiumAnimations.map) return playPremiumStage('map');
+      return hidePremiumAnimation();
+    }
+
+    var token = ++premiumPlaybackToken;
+    clearTimeout(premiumHideTimer);
+    premiumHideTimer = null;
+    premiumLightEl.hidden = false;
+    premiumLightEl.classList.remove('premium-unavailable');
+    premiumVideoEl.dataset.stage = stage;
+    premiumVideoEl.onended = function() {
+      if (token !== premiumPlaybackToken) return;
+      if (stage === 'map') return playPremiumStage('flourish');
+      premiumHideTimer = setTimeout(function() {
+        if (token === premiumPlaybackToken) hidePremiumAnimation();
+      }, 650);
+    };
+    premiumVideoEl.onerror = function() {
+      if (token !== premiumPlaybackToken) return;
+      premiumLightEl.classList.add('premium-unavailable');
+      if (stage === 'map') return playPremiumStage('flourish');
+      premiumHideTimer = setTimeout(function() {
+        if (token === premiumPlaybackToken) hidePremiumAnimation();
+      }, 250);
+    };
+    if (premiumVideoEl.dataset.source !== source) {
+      premiumVideoEl.dataset.source = source;
+      premiumVideoEl.src = source;
+      premiumVideoEl.load();
+    } else {
+      try { premiumVideoEl.currentTime = 0; } catch (error) {}
+    }
+    premiumVideoEl.play().catch(function() {});
+  }
+
+  function updatePremiumAnimation(membership, animations) {
+    var active = membership && membership.tier === 'advanced' &&
+      ['active', 'trialing', 'past_due'].includes(membership.status);
+    premiumMember = Boolean(active);
+    premiumAnimations = normalizePremiumAnimations(animations);
+    document.body.classList.toggle('premium-member', Boolean(active));
+    if (!premiumMember || !Object.keys(premiumAnimations).length) return hidePremiumAnimation();
+    playPremiumStage('lumos');
+  }
+
+  premiumVideoEl.addEventListener('loadeddata', function() { premiumLightEl.classList.remove('premium-unavailable'); });
+  premiumVideoEl.addEventListener('error', function() {
+    premiumLightEl.classList.add('premium-unavailable');
+  });
 
   // ---- Helpers --------------------------------------------------------------
   function getPoint(e) {
@@ -365,6 +573,7 @@
   }
 
   function showStatus(msg, dots) {
+    statusEl.classList.remove('status-recovery');
     statusEl.replaceChildren(document.createTextNode(msg));
     if (dots) {
       var dotsEl = document.createElement('span');
@@ -374,7 +583,48 @@
     }
     statusEl.classList.add('visible');
   }
-  function hideStatus() { statusEl.classList.remove('visible'); }
+  function showRecoveryStatus(msg) {
+    showStatus(msg, false);
+    statusEl.classList.add('status-recovery');
+    var actions = document.createElement('div');
+    actions.className = 'status-recovery-actions';
+    actions.innerHTML = '<span class="status-recovery-label">' + copy('recoveryRewrite') + '</span>' +
+      '<button class="status-recovery-button primary" type="button" data-status-action="clear">' + copy('recoveryClear') + '</button>' +
+      '<span class="status-recovery-label">' + copy('recoveryModify') + '</span>' +
+      '<button class="status-recovery-button" type="button" data-status-action="erase">' + copy('recoveryErase') + '</button>' +
+      '<button class="status-recovery-button" type="button" data-status-action="write">' + copy('recoveryWrite') + '</button>';
+    statusEl.appendChild(actions);
+    statusEl.querySelector('[data-status-action="clear"]').addEventListener('click', clearWriting);
+    statusEl.querySelector('[data-status-action="erase"]').addEventListener('click', function() { setInputMode('erase'); });
+    statusEl.querySelector('[data-status-action="write"]').addEventListener('click', function() { setInputMode('write'); });
+    updateRecoveryModeButtons();
+  }
+  function updateRecoveryModeButtons() {
+    statusEl.querySelectorAll('[data-status-action]').forEach(function(button) {
+      button.classList.toggle('active', button.dataset.statusAction === inputMode);
+    });
+  }
+  function setInputMode(mode) {
+    if (mode !== 'erase' && mode !== 'write') return;
+    inputMode = mode;
+    cancelIdle();
+    if (mode === 'write' && recoveryEdited && strokes.length && !waiting && !replyActive) scheduleIdle();
+    updateRecoveryModeButtons();
+  }
+  function clearWriting() {
+    if (waiting || replyActive) return;
+    cancelIdle();
+    drawing = false;
+    erasing = false;
+    inputMode = 'write';
+    pendingRequestId = null;
+    recoveryEdited = false;
+    strokes = [];
+    clearCanvas();
+    hideStatus();
+    showGuide();
+  }
+  function hideStatus() { statusEl.classList.remove('visible', 'status-recovery'); }
 
   function hideGuide() {
     clearTimeout(guideHideTimer);
@@ -460,7 +710,10 @@
 
   function startStroke(pt) {
     if (replyActive || waiting) return;
+    if (inputMode === 'erase') return;
     pendingRequestId = null;
+    recoveryEdited = true;
+    hideStatus();
     hideGuide();
     currentStroke = [pt];
     strokes.push(currentStroke);
@@ -515,14 +768,24 @@
     ctx.fill();
     ctx.restore();
     markDirty();
+    var previousPointCount = strokes.reduce(function(total, stroke) { return total + stroke.length; }, 0);
     strokes = strokes.map(function(s) {
       return s.filter(function(pt) { return Math.hypot(pt.x - x, pt.y - y) > ERASER_RADIUS; });
     }).filter(function(s) { return s.length > 0; });
+    var nextPointCount = strokes.reduce(function(total, stroke) { return total + stroke.length; }, 0);
+    if (nextPointCount !== previousPointCount) recoveryEdited = true;
   }
 
   // ---- Idle → commit -------------------------------------------------------
   function scheduleIdle() { clearTimeout(idleTimer); idleTimer = setTimeout(commitPage, IDLE_MS); }
   function cancelIdle() { clearTimeout(idleTimer); }
+
+  function isUnreadableError(error) {
+    return Boolean(error && (
+      error.code === 'HANDWRITING_UNREADABLE' || /无法(?:准确)?辨认/.test(error.message || '') ||
+      /could not be read|unreadable/i.test(error.message || '')
+    ));
+  }
 
   // ---- Commit --------------------------------------------------------------
   async function commitPage() {
@@ -533,7 +796,8 @@
     if (!portal || !await portal.ensureCanAsk()) return;
 
     waiting = true;
-    showStatus('答案之书正在读取你的问题', true);
+    playPremiumStage('lumos');
+    showStatus(copy('statusAbsorb'), true);
     var savedStrokes = strokes.map(function(stroke) {
       return stroke.map(function(point) { return Object.assign({}, point); });
     });
@@ -553,6 +817,7 @@
       portal.updateAfterAnswer(reply);
       hideStatus();
       replyActive = true;
+      playPremiumStage('map');
       await animateReply(reply.text, reply.isPrediction ? reply : null);
       replyActive = false;
     } catch(err) {
@@ -560,9 +825,15 @@
       clearCanvas();
       redrawAllStrokes();
       markDirty();
-      portal.handleApiError(err);
-      showStatus(err.message || '书页沉默了，请稍后再试。');
-      setTimeout(hideStatus, 4000);
+      if (isUnreadableError(err)) {
+        pendingRequestId = null;
+        recoveryEdited = false;
+        showRecoveryStatus(err.message || copy('unreadable'));
+      } else {
+        portal.handleApiError(err);
+        showStatus(err.message || copy('pageSilent'));
+        setTimeout(hideStatus, 4000);
+      }
     }
     waiting = false;
   }
@@ -701,7 +972,7 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId: requestId, image: pngDataUrl }),
+        body: JSON.stringify({ requestId: requestId, image: pngDataUrl, locale: LOCALE }),
       });
       var payload = await response.json().catch(function() { return {}; });
       if (!response.ok) {
@@ -710,16 +981,16 @@
         requestError.code = payload.code || 'REQUEST_FAILED';
         throw requestError;
       }
-      if (!payload.text) throw new Error('答案之书没有留下可显示的正文。');
+      if (!payload.text) throw new Error(copy('noText'));
       return Object.assign({}, payload, { draw: payload.geomancy || null });
     } catch(error) {
       if (error instanceof TypeError || (error && error.name === 'AbortError')) {
-        var networkError = new Error('网络连接失败，答案之书暂时无法回应。');
+        var networkError = new Error(copy('network'));
         networkError.code = 'NETWORK_ERROR';
         throw networkError;
       }
       if (error instanceof Error && error.message) throw error;
-      throw new Error('网络连接失败，答案之书暂时无法回应。');
+      throw new Error(copy('network'));
     }
   }
 
@@ -734,6 +1005,10 @@
 
   function replyFontFor(text) {
     return /[A-Za-z]/.test(String(text)) ? ENGLISH_REPLY_FONT_FAMILY : REPLY_FONT_FAMILY;
+  }
+
+  function leftNameForSpeech(name) {
+    return figureLabel(name, LOCALE);
   }
 
   // ---- Reply animation: Chinese-aware SVG ink fade-in -----------------------
@@ -794,10 +1069,15 @@
     appendGeomancyFigure(group, oracle.draw.patterns.result, centers[2], top, color, compact);
     appendSvgText(group, '+', (centers[0] + centers[1]) / 2, top + rowGap * 1.7, compact ? 18 : 22, color, '0.55');
     appendSvgText(group, '=', (centers[1] + centers[2]) / 2, top + rowGap * 1.7, compact ? 18 : 22, color, '0.55');
-    appendSvgText(group, oracle.draw.left, centers[0], labelY, compact ? 14 : 16, color, '0.78');
-    appendSvgText(group, oracle.draw.right, centers[1], labelY, compact ? 14 : 16, color, '0.78');
-    appendSvgText(group, oracle.draw.result, centers[2], labelY, compact ? 14 : 16, color, '0.92');
-    appendSvgText(group, '第 ' + oracle.draw.id + ' 组 · ' + oracle.topic, width / 2, metaY, compact ? 13 : 15, color, '0.62');
+    var leftName = figureLabel(oracle.draw.left, LOCALE);
+    var rightName = figureLabel(oracle.draw.right, LOCALE);
+    var resultName = figureLabel(oracle.draw.result, LOCALE);
+    appendSvgText(group, leftName, centers[0], labelY, compact ? 14 : 16, color, '0.78');
+    appendSvgText(group, rightName, centers[1], labelY, compact ? 14 : 16, color, '0.78');
+    appendSvgText(group, resultName, centers[2], labelY, compact ? 14 : 16, color, '0.92');
+    appendSvgText(group, LOCALE === 'en'
+      ? 'Draw ' + oracle.draw.id + ' · ' + (oracle.topic === '基本卦义' ? copy('coreFigures') : oracle.topic)
+      : '第 ' + oracle.draw.id + ' 组 · ' + oracle.topic, width / 2, metaY, compact ? 13 : 15, color, '0.62');
 
     setTimeout(function() {
       group.style.opacity = '0.94';
@@ -829,7 +1109,7 @@
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', (oracle
-      ? oracle.draw.left + '加' + oracle.draw.right + '得到' + oracle.draw.result + '，主题' + oracle.topic + '。'
+      ? leftNameForSpeech(oracle.draw.left) + (LOCALE === 'en' ? ' plus ' : '加') + leftNameForSpeech(oracle.draw.right) + (LOCALE === 'en' ? ' gives ' : '得到') + leftNameForSpeech(oracle.draw.result) + (LOCALE === 'en' ? ', topic ' : '，主题') + (oracle.topic === '基本卦义' ? copy('coreFigures') : oracle.topic) + (LOCALE === 'en' ? '.' : '。')
       : '') + text);
     svg.style.position = 'absolute';
     svg.style.top = '0'; svg.style.left = '0';
@@ -915,8 +1195,8 @@
     var appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var help = appleMobile
-      ? '请点 Safari 的“分享”，再选择“添加到主屏幕”。'
-      : '请打开浏览器菜单，选择“安装应用”或“添加到主屏幕”。';
+      ? copy('installIos')
+      : copy('installBrowser');
     if (portal) portal.toast(help); else showStatus(help);
   });
 
@@ -982,6 +1262,7 @@
     music: music,
     beforeExternal: saveExternalDraft,
     restoreExternal: restoreExternalDraft,
+    onMembershipChange: updatePremiumAnimation,
   });
   window.addEventListener('geomancer:auth-open', function() {
     cancelIdle();
@@ -994,7 +1275,7 @@
   // ---- Pointer events ------------------------------------------------------
   canvas.addEventListener('pointerdown', function(e) {
     e.preventDefault(); cancelIdle();
-    if (e.button === 2 || e.tiltY > 40 || (e.buttons & 2)) {
+    if (inputMode === 'erase' || e.button === 2 || e.tiltY > 40 || (e.buttons & 2)) {
       erasing = true; var pt = getPoint(e); eraseAt(pt.x, pt.y); return;
     }
     var pt = getPoint(e);
@@ -1009,11 +1290,11 @@
   });
   canvas.addEventListener('pointerup', function(e) {
     e.preventDefault();
-    if (erasing) { erasing = false; scheduleIdle(); return; }
+    if (erasing) { erasing = false; if (inputMode === 'write') scheduleIdle(); return; }
     endStroke();
   });
   canvas.addEventListener('pointercancel', function() {
-    if (erasing) { erasing = false; scheduleIdle(); return; }
+    if (erasing) { erasing = false; if (inputMode === 'write') scheduleIdle(); return; }
     endStroke();
   });
   canvas.addEventListener('pointerleave', function() { if (drawing) endStroke(); });
@@ -1022,7 +1303,7 @@
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       if (portal && portal.isOpen()) { portal.close(); return; }
-      cancelIdle(); clearCanvas(); strokes = [];
+      cancelIdle(); clearCanvas(); strokes = []; inputMode = 'write';
       pendingRequestId = null;
       waiting = false; replyActive = false; hideStatus();
     }

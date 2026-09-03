@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
-  <title id="title">The Geomancer’s Book of Answers</title>
-  <desc id="description">A gold letter D embossed on a dark enchanted diary cover.</desc>
+  <title id="title">Gs Diary · The Geomancer’s Book of Answers</title>
+  <desc id="description">An artistic gold Gs mark on a dark enchanted diary cover.</desc>
   <defs>
     <radialGradient id="cover" cx="50%" cy="42%" r="72%">
       <stop offset="0" stop-color="#21170f"/>
@@ -25,8 +25,8 @@
   <rect x="62" y="50" width="388" height="412" rx="42" fill="url(#cover)" stroke="#58411f" stroke-width="5"/>
   <rect x="82" y="70" width="348" height="372" rx="31" fill="none" stroke="#b58a44" stroke-opacity="0.48" stroke-width="3"/>
   <path d="M106 97C173 78 339 78 406 97M106 415C173 434 339 434 406 415" fill="none" stroke="#d6b269" stroke-opacity="0.24" stroke-width="3"/>
-  <text x="248" y="342" text-anchor="middle" font-family="Georgia, serif" font-size="260" font-style="italic" fill="url(#gold)" filter="url(#glow)">D</text>
-  <path d="M342 135c-29 44-48 91-59 140-8 34-8 66-1 96" fill="none" stroke="#f0d291" stroke-width="7" stroke-linecap="round" opacity="0.78"/>
-  <path d="M338 139c28 4 45 16 52 37-19 19-39 31-61 36 17 5 29 15 35 29-22 18-46 28-72 30" fill="none" stroke="#d7b46d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-  <circle cx="256" cy="399" r="4" fill="#f4d998" opacity="0.8"/>
+  <text x="256" y="285" text-anchor="middle" font-family="Georgia, serif" font-size="188" font-weight="700" font-style="italic" letter-spacing="-18" fill="url(#gold)" filter="url(#glow)">Gs</text>
+  <path d="M158 314c38 13 118 19 196 0" fill="none" stroke="#d7b46d" stroke-width="4" stroke-linecap="round" opacity="0.66"/>
+  <text x="256" y="374" text-anchor="middle" font-family="Georgia, serif" font-size="42" letter-spacing="8" fill="url(#gold)">Diary</text>
+  <text x="256" y="415" text-anchor="middle" font-family="Georgia, serif" font-size="16" letter-spacing="1.2" fill="#d7b46d" opacity="0.72">The Geomancer’s Book of Answers</text>
 </svg>

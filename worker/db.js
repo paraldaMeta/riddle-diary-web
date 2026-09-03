@@ -20,6 +20,46 @@ export function adminEmailSet(env) {
   return new Set(String(env.ADMIN_EMAILS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
 }
 
+async function membershipForUser(userId, env) {
+  const now = unixNow();
+  const row = await requireDatabase(env).prepare(`
+    SELECT s.plan_id, s.tier, s.interval, s.status, s.cancel_at_period_end,
+           p.id AS period_id, p.allocated, p.used, p.refunded, p.starts_at, p.ends_at
+    FROM subscriptions s
+    JOIN membership_periods p ON p.subscription_id = s.id
+    WHERE s.user_id = ?
+      AND s.status IN ('active', 'trialing', 'past_due')
+      AND p.status = 'active'
+      AND p.starts_at <= ?
+      AND p.ends_at > ?
+    ORDER BY p.ends_at DESC, p.starts_at DESC
+    LIMIT 1
+  `).bind(userId, now, now).first();
+  if (!row) return null;
+  const allocated = Math.max(0, Number(row.allocated) || 0);
+  const used = Math.max(0, Number(row.used) || 0);
+  const refunded = Math.max(0, Number(row.refunded) || 0);
+  return {
+    planId: row.plan_id,
+    tier: row.tier,
+    interval: row.interval,
+    status: row.status,
+    cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+    periodId: row.period_id,
+    quota: allocated,
+    used,
+    refunded,
+    remaining: Math.max(0, allocated - used - refunded),
+    periodStartsAt: Number(row.starts_at),
+    periodEndsAt: Number(row.ends_at),
+  };
+}
+
+async function withMembership(user, env) {
+  if (!user) return null;
+  return { ...user, membership: await membershipForUser(user.id, env) };
+}
+
 export async function getCurrentUser(request, env) {
   const token = parseCookies(request)['__Host-geomancer_session'];
   if (!token) return null;
@@ -37,7 +77,7 @@ export async function getCurrentUser(request, env) {
   if (!row) return null;
 
   const email = row.email || '';
-  return {
+  return withMembership({
     id: row.id,
     email: email || null,
     phone: row.phone || null,
@@ -46,12 +86,12 @@ export async function getCurrentUser(request, env) {
     admin: Boolean(email && adminEmailSet(env).has(email.toLowerCase())),
     credits: Number(row.credit_balance || 0),
     createdAt: Number(row.created_at),
-  };
+  }, env);
 }
 
 export async function requireUser(request, env) {
   const user = await getCurrentUser(request, env);
-  if (!user) throw new RequestError('请先登录再向答案之书提问', 401, 'AUTH_REQUIRED');
+  if (!user) throw new RequestError('请先登录再向地占解答书提问', 401, 'AUTH_REQUIRED');
   return user;
 }
 
@@ -136,7 +176,7 @@ export async function userResponse(userId, env) {
   `).bind(userId).first();
   if (!row) return null;
   const email = row.email || '';
-  return {
+  return withMembership({
     id: row.id,
     email: email || null,
     phone: row.phone || null,
@@ -145,5 +185,5 @@ export async function userResponse(userId, env) {
     admin: Boolean(email && adminEmailSet(env).has(email.toLowerCase())),
     credits: Number(row.credit_balance || 0),
     createdAt: Number(row.created_at),
-  };
+  }, env);
 }

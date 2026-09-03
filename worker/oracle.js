@@ -1,7 +1,7 @@
 import geomancyLibrary from '../src/geomancy-library.json' with { type: 'json' };
 import {
   HANDWRITING_INSTRUCTION,
-  ORACLE_SYSTEM_PROMPT,
+  buildOracleSystemPrompt,
   buildGeomancyInstruction,
   deserializeGeomancyDraw,
   drawGeomancyEntry,
@@ -9,6 +9,7 @@ import {
   serializeGeomancyDraw,
   validateGeomancyLibrary,
 } from '../src/geomancy.js';
+import { getLocale } from '../src/i18n.js';
 import { requireDatabase, requireUser, userResponse } from './db.js';
 import { RequestError, assertSameOrigin, json, randomId, readJson, unixNow } from './http.js';
 
@@ -35,7 +36,7 @@ function validateInput(body) {
     throw new RequestError('缺少手写图片，或图片格式不受支持', 400, 'INVALID_IMAGE');
   }
   if (image.length > MAX_IMAGE_LENGTH) throw new RequestError('手写图片过大', 413, 'IMAGE_TOO_LARGE');
-  return { requestId, image };
+  return { requestId, image, locale: getLocale(body.locale) };
 }
 
 function modelEndpoint(env) {
@@ -72,9 +73,16 @@ export function parseModelReply(raw, draw) {
   return { question, ...parsed };
 }
 
-async function callModel(env, image, draw, signal) {
-  if (!env.AI_API_KEY) throw new RequestError('答案之书的模型服务尚未配置', 503, 'AI_UNAVAILABLE');
-  const instruction = [HANDWRITING_INSTRUCTION, buildGeomancyInstruction(draw), QUESTION_MARKER_INSTRUCTION].join('\n\n');
+async function callModel(env, image, draw, signal, locale) {
+  if (!env.AI_API_KEY) throw new RequestError('地占解答书的模型服务尚未配置', 503, 'AI_UNAVAILABLE');
+  const questionMarkerInstruction = locale === 'en'
+    ? [
+      'To preserve the question the user actually wrote, after the geomancy marker output a new line with [[QUESTION:the complete text you truly read from the image]].',
+      'A single word, a short greeting, English, or mixed-language text is valid. Do not call clear short content unreadable.',
+      'Only when the image has no readable characters at all, output [[QUESTION:UNREADABLE]] and briefly ask the user to rewrite it. Keep this marker on one line; begin the answer on the third line.',
+    ].join('\n')
+    : QUESTION_MARKER_INSTRUCTION;
+  const instruction = [HANDWRITING_INSTRUCTION, buildGeomancyInstruction(draw, locale), questionMarkerInstruction].join('\n\n');
   const response = await fetch(modelEndpoint(env), {
     method: 'POST',
     redirect: 'manual',
@@ -88,7 +96,7 @@ async function callModel(env, image, draw, signal) {
       model: env.AI_MODEL || 'gpt-5.6-sol',
       stream: false,
       messages: [
-        { role: 'system', content: ORACLE_SYSTEM_PROMPT },
+        { role: 'system', content: buildOracleSystemPrompt(locale) },
         { role: 'user', content: [
           { type: 'image_url', image_url: { url: image } },
           { type: 'text', text: instruction },
@@ -100,12 +108,12 @@ async function callModel(env, image, draw, signal) {
   });
   if (response.status >= 300 && response.status < 400) {
     if (response.body) await response.body.cancel();
-    throw new RequestError('答案之书暂时无法连接模型', 502, 'AI_REDIRECT_BLOCKED');
+    throw new RequestError('地占解答书暂时无法连接模型', 502, 'AI_REDIRECT_BLOCKED');
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     console.error('AI upstream failed', response.status, JSON.stringify(payload).slice(0, 500));
-    throw new RequestError('答案之书暂时沉默了，本次不会扣除次数', 502, 'AI_UPSTREAM_FAILED');
+    throw new RequestError('地占解答书暂时沉默了，本次不会扣除次数', 502, 'AI_UPSTREAM_FAILED');
   }
   return parseModelReply(extractModelText(payload), draw);
 }
@@ -131,6 +139,7 @@ async function existingResult(db, user, requestId, env) {
       createdAt: Number(row.created_at),
       remainingCredits: refreshed?.admin ? null : refreshed?.credits,
       unlimited: Boolean(refreshed?.admin),
+      membership: refreshed?.membership || null,
       duplicate: true,
     };
   }
@@ -142,7 +151,7 @@ export async function handleAsk(request, env) {
   assertSameOrigin(request);
   const user = await requireUser(request, env);
   const body = await readJson(request, MAX_REQUEST_BYTES);
-  const { requestId, image } = validateInput(body);
+  const { requestId, image, locale } = validateInput(body);
   const db = requireDatabase(env);
   const previous = await existingResult(db, user, requestId, env);
   if (previous) return json(previous);
@@ -168,7 +177,7 @@ export async function handleAsk(request, env) {
 
   try {
     const draw = drawGeomancyEntry(LIBRARY);
-    const reply = await callModel(env, image, draw, request.signal);
+    const reply = await callModel(env, image, draw, request.signal, locale);
     const conversationId = randomId('cnv_');
     const createdAt = unixNow();
     const geomancy = reply.isPrediction ? publicDraw(draw) : null;
@@ -204,6 +213,7 @@ export async function handleAsk(request, env) {
       createdAt,
       remainingCredits: refreshed.admin ? null : refreshed.credits,
       unlimited: refreshed.admin,
+      membership: refreshed.membership || null,
       duplicate: false,
     });
   } catch (error) {
@@ -216,6 +226,6 @@ export async function handleAsk(request, env) {
     });
     if (error instanceof RequestError) throw error;
     console.error('Oracle request failed', error instanceof Error ? error.message : String(error));
-    throw new RequestError('答案之书暂时沉默了，本次不会扣除次数', 502, 'AI_REQUEST_FAILED');
+    throw new RequestError('地占解答书暂时沉默了，本次不会扣除次数', 502, 'AI_REQUEST_FAILED');
   }
 }

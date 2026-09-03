@@ -25,7 +25,7 @@ export async function sendEmailCode(env, email, code, purpose) {
   if (!env.RESEND_API_KEY || !env.AUTH_FROM_EMAIL) {
     throw new RequestError('邮件服务尚未配置', 503, 'EMAIL_UNAVAILABLE');
   }
-  const action = purpose === 'reset' ? '重置密码' : purpose === 'register' ? '完成注册' : '登录答案之书';
+  const action = purpose === 'reset' ? '重置密码' : purpose === 'register' ? '完成注册' : '登录地占解答书';
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -35,7 +35,7 @@ export async function sendEmailCode(env, email, code, purpose) {
     body: JSON.stringify({
       from: env.AUTH_FROM_EMAIL,
       to: [email],
-      subject: `答案之书验证码：${code}`,
+      subject: `地占解答书验证码：${code}`,
       text: `你的验证码是 ${code}，用于${action}。验证码十分钟内有效，请勿转发。`,
       html: `<div style="font-family:serif;color:#23180e"><p>你的验证码是</p><p style="font-size:28px;letter-spacing:8px"><strong>${code}</strong></p><p>用于${action}，十分钟内有效。请勿转发。</p></div>`,
     }),

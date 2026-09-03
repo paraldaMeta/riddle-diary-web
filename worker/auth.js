@@ -341,6 +341,7 @@ async function deleteAccount(request, env) {
   const db = requireDatabase(env);
   await db.batch([
     db.prepare('UPDATE payments SET user_id = NULL, customer_email = NULL WHERE user_id = ?').bind(user.id),
+    db.prepare('UPDATE membership_payments SET user_id = NULL, customer_email = NULL WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
   ]);
   return json({ ok: true }, 200, { 'Set-Cookie': clearSessionCookie() });
