@@ -250,6 +250,8 @@
       color: var(--status);
       opacity: 0.98;
       pointer-events: auto;
+      max-height: calc(100dvh - 1rem);
+      overflow-y: auto;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
@@ -332,6 +334,29 @@
     }
     #install-app[hidden] { display: none; }
     #guide.hidden #install-app { pointer-events: none; }
+
+    @media (max-height: 420px) {
+      #guide {
+        gap: 0.45rem;
+        justify-content: flex-start;
+        overflow-y: auto;
+        padding: 0.6rem;
+      }
+      #guide .title {
+        font-size: clamp(1.45rem, 7vw, 2.6rem);
+        margin-top: 0.2rem;
+      }
+      #guide .title span { white-space: normal; }
+      #guide .hint {
+        max-width: 92vw;
+        font-size: 0.88rem;
+        line-height: 1.35;
+      }
+      #install-app {
+        position: static;
+        margin-top: 0.2rem;
+      }
+    }
 
   </style>
 </head>

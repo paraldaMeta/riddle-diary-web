@@ -383,3 +383,43 @@
     filter: none;
   }
 }
+
+/* Keep the immersive login usable in short browser windows and split-screen layouts. */
+@media (max-height: 420px) {
+  #portal-root.portal-auth-scene .portal-frame {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #portal-root.portal-auth-scene .portal-head,
+  #portal-root.portal-auth-scene .portal-nav {
+    flex: 0 0 auto;
+  }
+  #portal-root.portal-auth-scene .portal-head { padding-bottom: 0.35rem; }
+  #portal-root.portal-auth-scene .portal-nav { min-height: 32px; }
+  #portal-root.portal-auth-scene .portal-body {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.65rem 0 1rem;
+  }
+  #portal-root.portal-auth-scene .portal-section {
+    width: min(620px, 90vw);
+    margin-inline: auto;
+  }
+  #portal-root.portal-auth-scene .portal-auth-prologue { margin-bottom: 0.8rem; }
+  #portal-root.portal-auth-scene .portal-ink-prompt {
+    font-size: clamp(1.35rem, 4vw, 2rem);
+    margin-bottom: 0.35rem;
+  }
+  #portal-root.portal-auth-scene .portal-ink-copy {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  #portal-root.portal-auth-scene .portal-auth-ui,
+  #portal-root.portal-auth-scene .portal-auth-prologue + .portal-auth-switch {
+    animation-delay: 0.45s;
+  }
+}

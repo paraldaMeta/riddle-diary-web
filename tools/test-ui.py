@@ -157,6 +157,23 @@ def check_recovery(browser):
     context.close()
 
 
+def check_short_auth(browser):
+    context = browser.new_context(viewport={"width": 1016, "height": 254}, locale="zh-CN")
+    page = context.new_page()
+    page.goto(BASE, wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_selector("#portal-root.portal-open.portal-auth-scene", timeout=7000)
+    page.wait_for_timeout(2200)
+
+    body_box = page.locator(".portal-body").bounding_box()
+    prompt_box = page.locator(".portal-auth-prologue").bounding_box()
+    auth_switch_box = page.locator(".portal-auth-switch").bounding_box()
+    assert body_box["height"] > 0
+    assert prompt_box["y"] < body_box["y"] + body_box["height"]
+    assert auth_switch_box["y"] < body_box["y"] + body_box["height"]
+    assert page.locator(".portal-body").evaluate("element => element.scrollHeight > element.clientHeight")
+    context.close()
+
+
 def check_origin_story(browser):
     context = browser.new_context(viewport={"width": 900, "height": 700}, locale="zh-CN")
     context.add_init_script(
@@ -324,6 +341,7 @@ with sync_playwright() as playwright:
     check_view(browser, "desktop-zh", {"width": 1440, "height": 900}, "zh-CN")
     check_view(browser, "ios-pwa-en", {"width": 390, "height": 844}, "en-US", standalone=True)
     check_view(browser, "ios-pwa-zh", {"width": 390, "height": 844}, "zh-CN", standalone=True)
+    check_short_auth(browser)
     check_recovery(browser)
     check_origin_story(browser)
     check_membership(browser)
