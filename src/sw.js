@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'riddle-diary-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v9';
+const CACHE_NAME = CACHE_PREFIX + 'v10';
 const AUDIO_CACHE = 'geomancer-audio-v1';
 const APP_SHELL = [
   '/',

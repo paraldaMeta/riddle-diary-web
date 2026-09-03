@@ -174,6 +174,26 @@ def check_short_auth(browser):
     context.close()
 
 
+def check_auth_network_error(browser):
+    context = browser.new_context(viewport={"width": 900, "height": 700}, locale="zh-CN")
+    page = context.new_page()
+
+    def handle_api(route):
+        if route.request.url.endswith("/api/auth/me"):
+            route.abort(error_code="failed")
+            return
+        route.continue_()
+
+    page.route("**/api/**", handle_api)
+    page.goto(BASE, wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_selector("#portal-root.portal-open.portal-auth-scene", timeout=7000)
+    page.wait_for_selector("#portal-auth-message", timeout=5000)
+    assert page.locator("#portal-auth-message").inner_text() == "网络连接失败，地占解答书暂时无法回应。"
+    assert page.locator("[data-auth-retry]").count() == 1
+    assert page.locator("#portal-auth-form [type=submit]").is_disabled()
+    context.close()
+
+
 def check_origin_story(browser):
     context = browser.new_context(viewport={"width": 900, "height": 700}, locale="zh-CN")
     context.add_init_script(
@@ -342,6 +362,7 @@ with sync_playwright() as playwright:
     check_view(browser, "ios-pwa-en", {"width": 390, "height": 844}, "en-US", standalone=True)
     check_view(browser, "ios-pwa-zh", {"width": 390, "height": 844}, "zh-CN", standalone=True)
     check_short_auth(browser)
+    check_auth_network_error(browser)
     check_recovery(browser)
     check_origin_story(browser)
     check_membership(browser)

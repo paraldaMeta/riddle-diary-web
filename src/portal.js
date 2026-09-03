@@ -63,6 +63,7 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
   const accountButton = document.getElementById('account-button');
   let user = null;
   let config = null;
+  let authConfigError = null;
   let initialized = false;
   let active = 'overview';
   let authMode = 'register';
@@ -114,12 +115,14 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
       const data = await api('/api/auth/me');
       user = data.user;
       config = data.config;
+      authConfigError = null;
       initialized = true;
       onMembershipChange?.(user?.membership || null, config?.billing?.premiumAnimations || config?.billing?.premiumAnimationUrl || '');
       updateButtons();
       return user;
     } catch (error) {
       initialized = true;
+      authConfigError = error;
       config = null;
       user = null;
       onMembershipChange?.(null, '');
@@ -274,6 +277,11 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
       submit = copy('sendSms');
     }
     const unavailable = !config?.auth?.turnstileSiteKey;
+    const authMessage = authConfigError
+      ? (authConfigError instanceof TypeError || authConfigError.name === 'AbortError'
+        ? copy('network')
+        : authConfigError.message || copy('requestFailed'))
+      : unavailable ? copy('authConfig') : '';
     section(`
       <div class="portal-auth-prologue">
         <h3 class="portal-ink-prompt" data-ink-reveal="${escapeHtml(copy('whoAreYou'))}"></h3>
@@ -286,7 +294,8 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
         <button class="portal-button primary" type="submit" ${unavailable ? 'disabled' : ''}>${submit}</button>
         ${config?.auth?.googleEnabled ? '<button class="portal-button" type="button" id="portal-google">' + copy('useGoogle') + '</button>' : ''}
       </form>
-      <p class="portal-message ${unavailable ? 'error' : ''}" id="portal-auth-message">${unavailable ? copy('authConfig') : ''}</p>
+      <p class="portal-message ${authMessage ? 'error' : ''}" id="portal-auth-message">${escapeHtml(authMessage)}</p>
+      ${authConfigError ? `<button class="portal-button portal-auth-retry" type="button" data-auth-retry>${copy('authRetry')}</button>` : ''}
     `);
     if (!unavailable) mountTurnstile(authMode === 'register' ? 'register' : authMode === 'password' ? 'login' : authMode === 'reset' ? 'reset' : 'otp');
     body.querySelector('#portal-auth-form')?.addEventListener('submit', submitAuth);
@@ -762,6 +771,8 @@ export function createPortal({ music, beforeExternal, restoreExternal, onMembers
     render();
   });
   body.addEventListener('click', event => {
+    const authRetry = event.target.closest('[data-auth-retry]');
+    if (authRetry) { authRetry.disabled = true; open('overview'); return; }
     const authButton = event.target.closest('[data-auth-mode]');
     if (authButton) { authMode = authButton.dataset.authMode; challenge = null; renderAuth(); return; }
     const closeButton = event.target.closest('[data-close-portal]');
