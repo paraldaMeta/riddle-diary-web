@@ -123,6 +123,25 @@ Stripe Webhook 地址为 `https://你的域名/api/webhooks/stripe`。至少订�
 npm run deploy
 ```
 
+## 持续部署
+
+`main` 的每次 push 由 `.github/workflows/deploy.yml` 自动上线：安装依赖、跑单元测试、`wrangler deploy --dry-run` 打包校验，再依次应用 D1 迁移和部署 Worker。迁移排在部署之前，接着上线的代码才不会撞上还没建好的表。并发组 `deploy-production` 保证同时只跑一个部署，排队而不是中途取消。
+
+Pull Request 由 `.github/workflows/ci.yml` 跑测试和 dry-run；dry-run 不联网、不需要凭据。
+
+需要在仓库 Settings → Secrets and variables → Actions 配置：
+
+| Secret | 是否必需 | 用途 |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | 必需 | 部署 Worker 与应用 D1 迁移 |
+| `CLOUDFLARE_ACCOUNT_ID` | 帐号不止一个时必需 | 指定部署到哪个帐号 |
+
+API Token 用 Cloudflare 的 “Edit Cloudflare Workers” 模板创建，再补一项 D1 `Edit`；模板本身已包含 Worker 脚本、路由和帐号读取权限。
+
+上面 `wrangler secret put` 设置的 9 个 Secret 存在 Cloudflare 一侧，不要放进 GitHub —— `wrangler deploy` 不会覆盖它们。
+
+部署工作流绑定 `production` 环境，需要人工确认再上线时，可在仓库 Settings → Environments → production 加 required reviewers。
+
 ## 接口
 
 | 范围 | 接口 |
@@ -148,6 +167,7 @@ npm run deploy
 ## 项目结构
 
 ```text
+├── .github/workflows/          # CI 与 main 分支自动部署
 ├── migrations/                 # D1 帐号、额度、支付与历史 schema
 ├── worker/                     # 不作为静态资源发布的 API Worker
 │   ├── auth.js                 # 登录、验证码、OAuth、注销
