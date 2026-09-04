@@ -169,4 +169,4 @@ npm run deploy
 
 `Frost Waltz`、`Fairytale Waltz` 与 `Mysterioso March` 均由 Kevin MacLeod 创作，按 CC BY 4.0 使用；本站做了网页 MP3 压缩转换。完整链接见站内音乐署名页。代码沿用 MIT 许可及上游版权声明。
 
-中文界面和回答使用按 Unicode 范围切分的 `LXGW WenKai Lite` WebFont，浏览器只会下载当前文字涉及的分片；字体依据 SIL Open Font License 1.1 分发，许可文本见 `src/fonts/OFL-LXGW-WenKai.txt`。英文书名与英文回答继续使用本地化的 Dancing Script 字体文件。
+中文界面和回答使用按 Unicode 范围切分的 `LXGW WenKai Lite` WebFont，浏览器只会下载当前文字涉及的分片；字体依据 SIL Open Font License 1.1 分发，许可文本见 `src/fonts/OFL-LXGW-WenKai.txt`。英文书名使用本地化的 `Cormorant Garamond` SemiBold Italic 字体文件；英文回答与作者署名继续使用本地化的 Dancing Script 字体文件。两者均依据 SIL Open Font License 1.1 分发。

@@ -1,11 +1,12 @@
 const CACHE_PREFIX = 'riddle-diary-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v11';
+const CACHE_NAME = CACHE_PREFIX + 'v12';
 const AUDIO_CACHE = 'geomancer-audio-v1';
 const APP_SHELL = [
   '/',
   '/geomancy.js',
   '/fonts/lxgw-wenkai.css',
   '/fonts/dancing-script.woff2',
+  '/fonts/cormorant-garamond-italic.woff2',
   '/portal.js',
   '/portal.css',
   '/music.js',
